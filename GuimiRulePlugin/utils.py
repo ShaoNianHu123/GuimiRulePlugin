@@ -261,14 +261,14 @@ def parse_sc_command(message_text: str) -> dict:
 
     rest = text[len(matched_prefix):]
 
-    # 必须「sc」开头
-    if not rest.lower().startswith('sc'):
+    # 必须「gmsc」开头
+    if not rest.lower().startswith('gmsc'):
         return result
 
     result['is_sc'] = True
 
     # 提取参数
-    tail = rest[2:].strip()
+    tail = rest[4:].strip()
     if tail:
         # 解析如 "1d2/1d4" 或 "1d2 1d4" 的格式
         parts = re.split(r'[/\s]+', tail)
