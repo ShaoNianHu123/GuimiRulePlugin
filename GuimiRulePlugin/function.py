@@ -193,25 +193,37 @@ def _parse_manual_modifier(raw_target: str) -> tuple:
     """
     从目标字符串中分离技能/属性名和手动加值。
 
-    例: '力量+5' → ('力量', 5)
-        '格斗-2' → ('格斗', -2)
-        '力量'   → ('力量', None)
-        '手枪+3' → ('手枪', 3)
+    例: '力量+5' → ('力量', 5, 'adjust')     叠加调整
+        '格斗-2' → ('格斗', -2, 'adjust')    叠加调整
+        '力量5'  → ('力量', 5, 'absolute')    绝对指定
+        '力量'   → ('力量', None, None)       无手动值
 
-    返回: (clean_name, manual_modifier_or_None)
+    返回: (clean_name, value_or_None, mode_or_None)
+          mode: 'adjust'=叠加, 'absolute'=覆盖
     """
+    # 先匹配带符号的：+N 或 -N（叠加调整）
     match = re.search(r'([+\-]\d+)$', raw_target)
     if match:
         mod_str = match.group(1)
         clean = raw_target[:match.start()].strip()
         if clean:
-            return (clean, int(mod_str))
-    return (raw_target.strip(), None)
+            return (clean, int(mod_str), 'adjust')
+    # 再匹配纯数字后缀（绝对指定）
+    match = re.search(r'(\d+)$', raw_target)
+    if match:
+        num_str = match.group(1)
+        clean = raw_target[:match.start()].strip()
+        # 不能整个 target 都是数字（那是属性生成路由）
+        if clean:
+            return (clean, int(num_str), 'absolute')
+    return (raw_target.strip(), None, None)
 
 
 def perform_d20_check(pcHash, hagID, target: str, nick: str,
                       extra_attr: int = None,
-                      extra_skill: int = None) -> str:
+                      extra_skill: int = None,
+                      absolute_attr: int = None,
+                      absolute_skill: int = None) -> str:
     """
     执行一次 D20 技能/属性检定。
 
@@ -220,65 +232,63 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
         hagID: 群组上下文
         target: 目标技能或属性名称（已去除手动加值后缀）
         nick: 发送者昵称
-        extra_attr: 手动追加的属性调整值（叠加在卡片值之上，可为负）
-        extra_skill: 手动追加的技能调整值（叠加在卡片技能加值之上，可为负）
-
-    返回: 格式化的检定结果字符串
+        extra_attr: 叠加的属性调整值（+/-格式，叠加在卡片值之上）
+        extra_skill: 叠加的技能调整值
+        absolute_attr: 绝对指定的属性值（纯数字格式，替换卡片值）
+        absolute_skill: 绝对指定的技能加值
     """
     d20 = random.randint(1, 20)
 
-    # 判断是属性检定还是技能检定
     is_skill = target in config.SKILL_ATTR_MAP
     linked_attr_name = config.SKILL_ATTR_MAP.get(target, target)
 
-    # 读取卡片属性值（始终读取）
+    # 读取卡片属性值
     card_attr = _get_user_stat(pcHash, hagID, linked_attr_name)
-    # 手动额外调整值（叠加）
-    extra_attr_val = extra_attr if extra_attr is not None else 0
-    attr_val = card_attr + extra_attr_val
 
-    has_manual = (extra_attr_val != 0 or extra_skill is not None)
+    # 绝对指定优先，否则用卡片值 + 叠加调整
+    if absolute_attr is not None:
+        attr_val = absolute_attr
+        attr_display = f'{linked_attr_name}({attr_val} 手动指定)'
+    else:
+        extra_a = extra_attr if extra_attr is not None else 0
+        attr_val = card_attr + extra_a
+        if extra_a != 0:
+            attr_display = f'{linked_attr_name}(卡片{card_attr} + 调整{extra_a:+d})'
+        else:
+            attr_display = f'{linked_attr_name}({card_attr})'
 
-    # 构建检定信息
+    has_manual = (absolute_attr is not None or absolute_skill is not None
+                  or extra_attr is not None or extra_skill is not None)
+
     lines = []
-    manual_tag = '【手动调整】' if has_manual else ''
+    manual_tag = '【手动】' if has_manual else ''
     lines.append(f'<{nick}>对【{target}】进行检定：{manual_tag}')
 
     bonus = attr_val
     skill_info = ''
 
     if is_skill:
-        # 技能检定：rd20 + 关联属性 + 技能加值
         card_skill = _get_user_skill(pcHash, hagID, target)
         level_name, card_skill_bonus = _parse_skill_level(card_skill)
-        extra_skill_val = extra_skill if extra_skill is not None else 0
-        skill_bonus = card_skill_bonus + extra_skill_val
 
-        if extra_skill_val != 0:
-            skill_info = f' + 技能{target}(卡片{level_name}:{card_skill_bonus:+d} + 调整{extra_skill_val:+d})'
+        if absolute_skill is not None:
+            skill_bonus = absolute_skill
+            skill_info = f' + 技能{target}(手动指定:{skill_bonus:+d})'
         else:
-            skill_info = f' + 技能{target}({level_name}:{skill_bonus:+d})'
+            extra_s = extra_skill if extra_skill is not None else 0
+            skill_bonus = card_skill_bonus + extra_s
+            if extra_s != 0:
+                skill_info = f' + 技能{target}(卡片{level_name}:{card_skill_bonus:+d} + 调整{extra_s:+d})'
+            else:
+                skill_info = f' + 技能{target}({level_name}:{skill_bonus:+d})'
 
         bonus = attr_val + skill_bonus
-        lines.append(
-            f'rd20({d20}) + {linked_attr_name}(卡片{card_attr}'
-            f'{f" + 调整{extra_attr_val:+d}" if extra_attr_val != 0 else ""})'
-            f'{skill_info}'
-        )
+        lines.append(f'rd20({d20}) + {attr_display}{skill_info}')
     else:
-        # 属性检定：rd20 + 属性值
-        if extra_attr_val != 0:
-            lines.append(
-                f'rd20({d20}) + {linked_attr_name}(卡片{card_attr} + 调整{extra_attr_val:+d})'
-            )
-        else:
-            lines.append(
-                f'rd20({d20}) + {linked_attr_name}({card_attr})'
-            )
+        lines.append(f'rd20({d20}) + {attr_display}')
 
     total = d20 + bonus
 
-    # 大成功 / 大失败
     is_crit_success = (d20 == 1)
     is_crit_fail = (d20 == 20)
 
@@ -291,12 +301,8 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
     else:
         lines.append(f'检定结果: {total}')
 
-    # 汇总行
-    lines.append(
-        f'（对抗时以此值比较：{d20}+{linked_attr_name}({attr_val})'
-        f'{"+技能(" + str(skill_bonus) + ")" if is_skill else ""}'
-        f'={total}）'
-    )
+    skill_summary = f'+技能({skill_bonus})' if is_skill else ''
+    lines.append(f'（对抗时以此值比较：{d20}+{attr_val}{skill_summary}={total}）')
 
     return '\n'.join(lines)
 
@@ -399,11 +405,12 @@ def handle_stat_command(nick: str, count: int, is_v4: bool = False) -> str:
 def handle_gm_command(pcHash, hagID, target: str, nick: str) -> str:
     """处理 .gm 检定命令。支持手动加值格式如 .gm力量+5 或 .gm格斗+3。"""
     # 解析手动加值后缀
-    clean_target, manual_mod = _parse_manual_modifier(target)
+    clean_target, manual_mod, mod_mode = _parse_manual_modifier(target)
 
     if clean_target is None:
         clean_target = target
         manual_mod = None
+        mod_mode = None
 
     # 检查目标是否在已知的技能/属性列表中
     found = None
@@ -428,15 +435,25 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str) -> str:
 
     final_target = found if found is not None else clean_target
 
-    # 手动加值判定：若目标是属性名（非技能），则 manual_mod 视为属性额外调整
+    # 手动加值判定
     is_skill = final_target in config.SKILL_ATTR_MAP
     if manual_mod is not None:
-        if is_skill:
-            return perform_d20_check(pcHash, hagID, final_target, nick,
-                                     extra_skill=manual_mod)
+        if mod_mode == 'absolute':
+            # 纯数字格式 → 绝对指定
+            if is_skill:
+                return perform_d20_check(pcHash, hagID, final_target, nick,
+                                         absolute_skill=manual_mod)
+            else:
+                return perform_d20_check(pcHash, hagID, final_target, nick,
+                                         absolute_attr=manual_mod)
         else:
-            return perform_d20_check(pcHash, hagID, final_target, nick,
-                                     extra_attr=manual_mod)
+            # +/-格式 → 叠加调整
+            if is_skill:
+                return perform_d20_check(pcHash, hagID, final_target, nick,
+                                         extra_skill=manual_mod)
+            else:
+                return perform_d20_check(pcHash, hagID, final_target, nick,
+                                         extra_attr=manual_mod)
     else:
         return perform_d20_check(pcHash, hagID, final_target, nick)
 
