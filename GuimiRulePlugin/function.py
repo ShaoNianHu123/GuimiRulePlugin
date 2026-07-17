@@ -179,7 +179,7 @@ def _parse_skill_level(skill_value: int) -> tuple:
     返回: (等级名, 加值)
     """
     level_map = [
-        ('未受训', -4),
+        ('未受训', -2),
         ('受训', 0),
         ('熟练', 2),
         ('进阶', 4),
