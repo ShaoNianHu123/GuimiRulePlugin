@@ -13,6 +13,7 @@ import random
 import re
 
 from . import config
+from . import msgCustom
 
 # OlivaDiceCore 仅在实际调用时才引用，避免导入时依赖缺失导致崩溃
 _ODC = None
@@ -404,6 +405,11 @@ def handle_stat_command(nick: str, count: int, is_v4: bool = False) -> str:
 
 def handle_gm_command(pcHash, hagID, target: str, nick: str) -> str:
     """处理 .gm 检定命令。支持手动加值格式如 .gm力量+5 或 .gm格斗+3。"""
+    # help 指令（双保险）
+    if target.strip().lower() == 'help':
+        return msgCustom.dictHelpDocTemp.get(
+            '诡秘规则帮助', '暂无帮助信息'
+        )
     # 解析手动加值后缀
     clean_target, manual_mod, mod_mode = _parse_manual_modifier(target)
 
