@@ -210,8 +210,8 @@ def _parse_manual_modifier(raw_target: str) -> tuple:
 
 
 def perform_d20_check(pcHash, hagID, target: str, nick: str,
-                      manual_attr: int = None,
-                      manual_skill: int = None) -> str:
+                      extra_attr: int = None,
+                      extra_skill: int = None) -> str:
     """
     执行一次 D20 技能/属性检定。
 
@@ -220,8 +220,8 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
         hagID: 群组上下文
         target: 目标技能或属性名称（已去除手动加值后缀）
         nick: 发送者昵称
-        manual_attr: 手动指定的属性值（None=从角色卡读取）
-        manual_skill: 手动指定的技能加值（None=从角色卡读取）
+        extra_attr: 手动追加的属性调整值（叠加在卡片值之上，可为负）
+        extra_skill: 手动追加的技能调整值（叠加在卡片技能加值之上，可为负）
 
     返回: 格式化的检定结果字符串
     """
@@ -231,17 +231,17 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
     is_skill = target in config.SKILL_ATTR_MAP
     linked_attr_name = config.SKILL_ATTR_MAP.get(target, target)
 
-    # 读取属性值：手动值优先，否则读角色卡
-    if manual_attr is not None:
-        attr_val = manual_attr
-        attr_source = '(手动)'
-    else:
-        attr_val = _get_user_stat(pcHash, hagID, linked_attr_name)
-        attr_source = ''
+    # 读取卡片属性值（始终读取）
+    card_attr = _get_user_stat(pcHash, hagID, linked_attr_name)
+    # 手动额外调整值（叠加）
+    extra_attr_val = extra_attr if extra_attr is not None else 0
+    attr_val = card_attr + extra_attr_val
+
+    has_manual = (extra_attr_val != 0 or extra_skill is not None)
 
     # 构建检定信息
     lines = []
-    manual_tag = '【手动加值】' if (manual_attr is not None or manual_skill is not None) else ''
+    manual_tag = '【手动调整】' if has_manual else ''
     lines.append(f'<{nick}>对【{target}】进行检定：{manual_tag}')
 
     bonus = attr_val
@@ -249,22 +249,32 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
 
     if is_skill:
         # 技能检定：rd20 + 关联属性 + 技能加值
-        if manual_skill is not None:
-            skill_bonus = manual_skill
-            skill_info = f' + 技能{target}(手动:{skill_bonus:+d})'
+        card_skill = _get_user_skill(pcHash, hagID, target)
+        level_name, card_skill_bonus = _parse_skill_level(card_skill)
+        extra_skill_val = extra_skill if extra_skill is not None else 0
+        skill_bonus = card_skill_bonus + extra_skill_val
+
+        if extra_skill_val != 0:
+            skill_info = f' + 技能{target}(卡片{level_name}:{card_skill_bonus:+d} + 调整{extra_skill_val:+d})'
         else:
-            skill_val = _get_user_skill(pcHash, hagID, target)
-            level_name, skill_bonus = _parse_skill_level(skill_val)
             skill_info = f' + 技能{target}({level_name}:{skill_bonus:+d})'
+
         bonus = attr_val + skill_bonus
         lines.append(
-            f'rd20({d20}) + {linked_attr_name}({attr_val}{attr_source}){skill_info}'
+            f'rd20({d20}) + {linked_attr_name}(卡片{card_attr}'
+            f'{f" + 调整{extra_attr_val:+d}" if extra_attr_val != 0 else ""})'
+            f'{skill_info}'
         )
     else:
         # 属性检定：rd20 + 属性值
-        lines.append(
-            f'rd20({d20}) + {linked_attr_name}({attr_val}{attr_source})'
-        )
+        if extra_attr_val != 0:
+            lines.append(
+                f'rd20({d20}) + {linked_attr_name}(卡片{card_attr} + 调整{extra_attr_val:+d})'
+            )
+        else:
+            lines.append(
+                f'rd20({d20}) + {linked_attr_name}({card_attr})'
+            )
 
     total = d20 + bonus
 
@@ -281,16 +291,12 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
     else:
         lines.append(f'检定结果: {total}')
 
-    # 显示属性参考值（帮助主持人判定）
-    if is_skill:
-        lines.append(
-            f'（对抗时以此值比较：{d20}+{linked_attr_name}({attr_val})'
-            f'+技能({skill_bonus:+d})={total}）'
-        )
-    else:
-        lines.append(
-            f'（对抗时以此值比较：{d20}+{linked_attr_name}({attr_val})={total}）'
-        )
+    # 汇总行
+    lines.append(
+        f'（对抗时以此值比较：{d20}+{linked_attr_name}({attr_val})'
+        f'{"+技能(" + str(skill_bonus) + ")" if is_skill else ""}'
+        f'={total}）'
+    )
 
     return '\n'.join(lines)
 
@@ -422,15 +428,15 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str) -> str:
 
     final_target = found if found is not None else clean_target
 
-    # 手动加值判定：若目标是属性名（非技能），则 manual_mod 视为属性值
+    # 手动加值判定：若目标是属性名（非技能），则 manual_mod 视为属性额外调整
     is_skill = final_target in config.SKILL_ATTR_MAP
     if manual_mod is not None:
         if is_skill:
             return perform_d20_check(pcHash, hagID, final_target, nick,
-                                     manual_skill=manual_mod)
+                                     extra_skill=manual_mod)
         else:
             return perform_d20_check(pcHash, hagID, final_target, nick,
-                                     manual_attr=manual_mod)
+                                     extra_attr=manual_mod)
     else:
         return perform_d20_check(pcHash, hagID, final_target, nick)
 
