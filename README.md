@@ -30,9 +30,19 @@
 
 ### 部署步骤
 
-1. 下载 `GuimiRulePlugin_v0.0.1.opk` 放入 OlivOS 的 `plugin/` 目录（或解压 `.zip` 后放入）
-2. 将 `template/gm.json` 复制到 OlivaDiceCore 数据目录的 `unity/extend/template/` 下
-3. 重启 OlivOS
+**两部分需分别安装：**
+
+**1. 安装插件**
+下载 `GuimiRulePlugin.opk` 放入 OlivOS 的 `plugin/` 目录
+
+**2. 安装人物卡模板**
+将 `template/gm.json` 复制到 OlivaDiceCore 数据目录的 `unity/extend/template/` 下
+
+> ⚠️ 插件与模板**互相锁定**：
+> - 插件 `app.json` → `requireTemplate: {name: "gm", minVersion: "1.0.0"}`
+> - 模板 `gm.json` → `requirePlugin: {namespace: "GuimiRulePlugin", minVersion: "0.0.1"}`
+> 
+> 两者必须版本匹配才能正常工作。更新时请同步替换。
 
 ### 快速上手
 

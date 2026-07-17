@@ -1,6 +1,13 @@
 {
     "gm": {
         "mainDice": "1D20",
+        "author": "Reasonix (AI assisted)",
+        "info": "诡秘之主D20共创版 v3.5.0 人物卡模板 —— 需配合 GuimiRulePlugin 插件使用",
+        "version": "1.0.0",
+        "requirePlugin": {
+            "namespace": "GuimiRulePlugin",
+            "minVersion": "0.0.1"
+        },
         "skill": {
             "属性": [
                 "力量", "体质", "敏捷", "魅力",
