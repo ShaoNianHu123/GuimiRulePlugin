@@ -44,8 +44,17 @@ dictHelpDocTemp = {
   .sc 1/1d6             成功损失1，失败损失1d6
 
 —— OlivaDiceCore 配套指令 ——
-.set gm / .set 诡秘    切换本群/频道诡秘房规
-.st temp gm            绑定GM人物卡模板
-.st rule gm            切换GM人物卡规则
+.set temp gm            切换本群/频道诡秘房规
+.st temp gm             切换GM人物卡模板
+.st rule gm             切换GM人物卡规则
+
+—— 人物卡录入（ODC内置）——
+.st <卡名>-<技能><值>...   建卡批量录入
+.st <技能><值>...          当前卡批量录入
+.st rm <技能>              删除技能
+.st blockrm <块名>         删除技能块
+
+例：.st 克莱恩-力量5体质4敏捷3灵感6意志5教育4幸运3
+    .st 格斗2 手枪1 闪避1 侦查1 神秘学2
 ''',
 }
