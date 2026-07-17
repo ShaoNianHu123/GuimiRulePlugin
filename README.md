@@ -1,6 +1,6 @@
 # 诡秘之主D20跑团规则插件 (GuimiRulePlugin)
 
-> **⚠️ 声明**：本插件由 **AI 辅助编程** 完成，使用 [Reasonix](https://reasonix.ai) 的 `olivos-plugin-developer` skill 开发，用于 **OlivOS** 框架。  
+> **⚠️ 声明**：本插件由 **AI 辅助编程** 完成，使用 [olivos-plugin-developer](https://github.com/Desom-fu/OlivOS-Plugin-Skill) skill 开发，用于 **OlivOS** 框架。  
 > AI 不保证代码零缺陷，使用前请自行测试。
 
 ---
