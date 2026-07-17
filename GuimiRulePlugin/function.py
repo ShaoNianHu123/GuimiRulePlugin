@@ -212,7 +212,7 @@ def _parse_manual_modifier(raw_target: str) -> tuple:
     """
     override_attr = None
     roll_mode = None
-    extra_attr_mod = None
+    
     # 提取 adv/dis/优势/劣势 后缀
     adv_match = re.search(r'\s+(adv|优势|dis|劣势)\s*$', raw_target, re.IGNORECASE)
     if adv_match:
@@ -224,21 +224,15 @@ def _parse_manual_modifier(raw_target: str) -> tuple:
     if slash_match:
         override_attr = slash_match.group(1).strip()
         raw_target = raw_target[:slash_match.start()].strip()
-    # 匹配 +N+M 或 +N/+M（属性额外 + 技能额外）
-    double_match = re.search(r'([+\-]\d+)\s*[/]?\s*([+\-]\d+)$', raw_target)
-    if double_match:
-        extra_attr_mod = int(double_match.group(1))
-        mod_str = double_match.group(2)
-        clean = raw_target[:double_match.start()].strip()
-        if clean:
-            return (clean, int(mod_str), 'adjust', override_attr, roll_mode, extra_attr_mod)
-    # 匹配带符号的：+N 或 -N（叠加调整）
-    match = re.search(r'([+\-]\d+)$', raw_target)
+    # 匹配带符号的：+N 或 -N 序列（全部累加为一个总调整值）
+    match = re.search(r'((?:[+\-]\d+)+)$', raw_target)
     if match:
         mod_str = match.group(1)
+        # 逐个提取 +N/-N 并求和
+        total_mod = sum(int(x) for x in re.findall(r'[+\-]\d+', mod_str))
         clean = raw_target[:match.start()].strip()
         if clean:
-            return (clean, int(mod_str), 'adjust', override_attr, roll_mode, None)
+            return (clean, total_mod, 'adjust', override_attr, roll_mode, None)
     # 匹配纯数字后缀（绝对指定）
     match = re.search(r'(\d+)$', raw_target)
     if match:
@@ -463,7 +457,7 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str,
     if target.strip().lower() == 'help':
         return msgCustom.dictHelpDocTemp.get('诡秘规则帮助', '暂无帮助信息')
     # 解析手动加值后缀
-    clean_target, manual_mod, mod_mode, override_attr, parsed_roll_mode, extra_attr_mod = _parse_manual_modifier(target)
+    clean_target, manual_mod, mod_mode, override_attr, parsed_roll_mode, _ = _parse_manual_modifier(target)
 
     # 外部传入的 roll_mode（来自 .gmb/.gmp/.gm 优势 等）优先
     if roll_mode:
@@ -475,7 +469,7 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str,
         mod_mode = None
         override_attr = None
         parsed_roll_mode = None
-        extra_attr_mod = None
+        
 
     # 检查目标是否在已知的技能/属性列表中
     found = None
@@ -512,28 +506,28 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str,
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          absolute_skill=manual_mod,
                                          override_attr=override_attr,
-                                         roll_mode=parsed_roll_mode, extra_attr=extra_attr_mod)
+                                         roll_mode=parsed_roll_mode)
             else:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          absolute_attr=manual_mod,
                                          override_attr=override_attr,
-                                         roll_mode=parsed_roll_mode, extra_attr=extra_attr_mod)
+                                         roll_mode=parsed_roll_mode)
         else:
             # +/-格式 → 叠加调整
             if is_skill:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          extra_skill=manual_mod,
                                          override_attr=override_attr,
-                                         roll_mode=parsed_roll_mode, extra_attr=extra_attr_mod)
+                                         roll_mode=parsed_roll_mode)
             else:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          extra_attr=manual_mod,
                                          override_attr=override_attr,
-                                         roll_mode=parsed_roll_mode, extra_attr=extra_attr_mod)
+                                         roll_mode=parsed_roll_mode)
     else:
         return perform_d20_check(pcHash, hagID, final_target, nick,
                                  override_attr=override_attr,
-                                 roll_mode=parsed_roll_mode, extra_attr=extra_attr_mod)
+                                 roll_mode=parsed_roll_mode)
 
 
 def handle_sc_command(pcHash, hagID, nick: str,
