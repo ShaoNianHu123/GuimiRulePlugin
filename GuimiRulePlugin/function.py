@@ -196,20 +196,29 @@ def _parse_skill_level(skill_value: int) -> tuple:
 
 def _parse_manual_modifier(raw_target: str) -> tuple:
     """
-    从目标字符串中分离技能/属性名、手动加值和改判属性。
+    从目标字符串中分离技能/属性名、手动加值、改判属性和奖励/惩罚投。
 
-    例: '力量+5'     → ('力量', 5, 'adjust', None)
-        '格斗-2'     → ('格斗', -2, 'adjust', None)
-        '力量5'      → ('力量', 5, 'absolute', None)
-        '驯兽/教育'  → ('驯兽', None, None, '教育')
-        '格斗+3/灵感'→ ('格斗', 3, 'adjust', '灵感')
-        '力量'       → ('力量', None, None, None)
+    例: '力量+5'       → ('力量', 5, 'adjust', None, None)
+        '格斗-2'       → ('格斗', -2, 'adjust', None, None)
+        '力量5'        → ('力量', 5, 'absolute', None, None)
+        '驯兽/教育'    → ('驯兽', None, None, '教育', None)
+        '格斗+3/灵感'  → ('格斗', 3, 'adjust', '灵感', None)
+        '力量 adv'     → ('力量', None, None, None, 'adv')
+        '格斗 dis'     → ('格斗', None, None, None, 'dis')
+        '力量 优势'    → ('力量', None, None, None, 'adv')
+        '格斗+3 adv'   → ('格斗', 3, 'adjust', None, 'adv')
 
-    返回: (clean_name, value_or_None, mode_or_None, override_attr_or_None)
-          mode: 'adjust'=叠加, 'absolute'=覆盖
+    返回: (clean_name, value, mode, override_attr, roll_mode)
     """
     override_attr = None
-    # 先提取 /属性 后缀（改判属性）
+    roll_mode = None
+    # 提取 adv/dis/优势/劣势 后缀
+    adv_match = re.search(r'\s+(adv|优势|dis|劣势)\s*$', raw_target, re.IGNORECASE)
+    if adv_match:
+        keyword = adv_match.group(1).lower()
+        roll_mode = 'adv' if keyword in ('adv', '优势') else 'dis'
+        raw_target = raw_target[:adv_match.start()].strip()
+    # 提取 /属性 后缀（改判属性）
     slash_match = re.search(r'/(.+)$', raw_target)
     if slash_match:
         override_attr = slash_match.group(1).strip()
@@ -220,15 +229,15 @@ def _parse_manual_modifier(raw_target: str) -> tuple:
         mod_str = match.group(1)
         clean = raw_target[:match.start()].strip()
         if clean:
-            return (clean, int(mod_str), 'adjust', override_attr)
+            return (clean, int(mod_str), 'adjust', override_attr, roll_mode)
     # 匹配纯数字后缀（绝对指定）
     match = re.search(r'(\d+)$', raw_target)
     if match:
         num_str = match.group(1)
         clean = raw_target[:match.start()].strip()
         if clean:
-            return (clean, int(num_str), 'absolute', override_attr)
-    return (raw_target.strip(), None, None, override_attr)
+            return (clean, int(num_str), 'absolute', override_attr, roll_mode)
+    return (raw_target.strip(), None, None, override_attr, roll_mode)
 
 
 def perform_d20_check(pcHash, hagID, target: str, nick: str,
@@ -236,7 +245,8 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
                       extra_skill: int = None,
                       absolute_attr: int = None,
                       absolute_skill: int = None,
-                      override_attr: str = None) -> str:
+                      override_attr: str = None,
+                      roll_mode: str = None) -> str:
     """
     执行一次 D20 技能/属性检定。
 
@@ -249,8 +259,23 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
         extra_skill: 叠加的技能调整值
         absolute_attr: 绝对指定的属性值（纯数字格式，替换卡片值）
         absolute_skill: 绝对指定的技能加值
+        override_attr: 改判属性名
+        roll_mode: None=普通, 'adv'=奖励投(取高), 'dis'=惩罚投(取低)
     """
-    d20 = random.randint(1, 20)
+    # 奖励投/惩罚投：掷两次取高/低
+    if roll_mode == 'adv':
+        d20_1 = random.randint(1, 20)
+        d20_2 = random.randint(1, 20)
+        d20 = max(d20_1, d20_2)
+        roll_tag = f'【奖励投】{d20_1}/{d20_2}→取高→{d20}'
+    elif roll_mode == 'dis':
+        d20_1 = random.randint(1, 20)
+        d20_2 = random.randint(1, 20)
+        d20 = min(d20_1, d20_2)
+        roll_tag = f'【惩罚投】{d20_1}/{d20_2}→取低→{d20}'
+    else:
+        d20 = random.randint(1, 20)
+        roll_tag = None
 
     # 仅 8 种属性名走属性检定，其它（含用户自定义）一律技能
     attr_names = [a['name'] for a in config.attrs_v3]
@@ -276,8 +301,13 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
                   or extra_attr is not None or extra_skill is not None)
 
     lines = []
-    manual_tag = '【手动】' if has_manual else ''
-    lines.append(f'<{nick}>对【{target}】进行检定：{manual_tag}')
+    tags = []
+    if has_manual:
+        tags.append('【手动】')
+    if roll_tag:
+        tags.append(roll_tag)
+    tag_str = ' '.join(tags)
+    lines.append(f'<{nick}>对【{target}】进行检定：{tag_str}')
 
     bonus = attr_val
     skill_info = ''
@@ -425,13 +455,14 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str) -> str:
             '诡秘规则帮助', '暂无帮助信息'
         )
     # 解析手动加值后缀
-    clean_target, manual_mod, mod_mode, override_attr = _parse_manual_modifier(target)
+    clean_target, manual_mod, mod_mode, override_attr, roll_mode = _parse_manual_modifier(target)
 
     if clean_target is None:
         clean_target = target
         manual_mod = None
         mod_mode = None
         override_attr = None
+        roll_mode = None
 
     # 检查目标是否在已知的技能/属性列表中
     found = None
@@ -467,24 +498,29 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str) -> str:
             if is_skill:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          absolute_skill=manual_mod,
-                                         override_attr=override_attr)
+                                         override_attr=override_attr,
+                                         roll_mode=roll_mode)
             else:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          absolute_attr=manual_mod,
-                                         override_attr=override_attr)
+                                         override_attr=override_attr,
+                                         roll_mode=roll_mode)
         else:
             # +/-格式 → 叠加调整
             if is_skill:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          extra_skill=manual_mod,
-                                         override_attr=override_attr)
+                                         override_attr=override_attr,
+                                         roll_mode=roll_mode)
             else:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          extra_attr=manual_mod,
-                                         override_attr=override_attr)
+                                         override_attr=override_attr,
+                                         roll_mode=roll_mode)
     else:
         return perform_d20_check(pcHash, hagID, final_target, nick,
-                                 override_attr=override_attr)
+                                 override_attr=override_attr,
+                                 roll_mode=roll_mode)
 
 
 def handle_sc_command(pcHash, hagID, nick: str,
