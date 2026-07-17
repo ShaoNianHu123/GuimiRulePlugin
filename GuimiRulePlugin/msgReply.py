@@ -200,6 +200,17 @@ def unity_reply(plugin_event, Proc):
     # ========== 指令处理 ==========
     msg_text = plugin_event.data.message
 
+    # ---- help 优先检测（在任何解析之前）----
+    help_keywords = ['.gm help', '.gmhelp', '。gm help', '。gmhelp',
+                     '.诡秘 help', '.诡秘help', '。诡秘 help', '。诡秘help',
+                     '/gm help', '/gmhelp', '/诡秘 help', '/诡秘help']
+    if msg_text.strip().lower() in help_keywords:
+        help_text = GuimiRulePlugin.msgCustom.dictHelpDocTemp.get(
+            '诡秘规则帮助', '暂无帮助信息'
+        )
+        replyMsg(plugin_event, help_text)
+        return
+
     # ---- 获取上下文信息 ----
     nick = plugin_event.data.sender.get('name', str(tmp_userID))
     platform = plugin_event.platform['platform']
