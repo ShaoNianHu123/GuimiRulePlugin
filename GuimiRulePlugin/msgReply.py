@@ -226,8 +226,13 @@ def unity_reply(plugin_event, Proc):
         hagID = None
 
     # ---- 处理 .诡秘 / .gm（互通路由）----
+    cmd_sc = GuimiRulePlugin.utils.parse_sc_command(msg_text)
     cmd_attr = GuimiRulePlugin.utils.parse_command(msg_text)
     cmd_gm = GuimiRulePlugin.utils.parse_gm_command(msg_text)
+
+    # gmsc 优先：防止 .gmsc 被 .gm 误匹配
+    if cmd_sc['is_sc']:
+        cmd_gm = {'is_gm': False, 'target': None, 'error': None}
 
     # 情况1: .诡秘 后面跟了技能/属性名 → 当作 .gm 检定
     if cmd_attr['is_guimi'] and cmd_attr['error']:
@@ -297,8 +302,7 @@ def unity_reply(plugin_event, Proc):
             replyMsg(plugin_event, f'检定失败: {e}')
         return
 
-    # ---- 处理 .sc 理智检定 ----
-    cmd_sc = GuimiRulePlugin.utils.parse_sc_command(msg_text)
+    # ---- 处理 .gmsc 理智检定 ----
     if cmd_sc['is_sc']:
         if cmd_sc['error']:
             replyMsg(plugin_event, cmd_sc['error'])
