@@ -196,39 +196,47 @@ def _parse_skill_level(skill_value: int) -> tuple:
 
 def _parse_manual_modifier(raw_target: str) -> tuple:
     """
-    从目标字符串中分离技能/属性名和手动加值。
+    从目标字符串中分离技能/属性名、手动加值和改判属性。
 
-    例: '力量+5' → ('力量', 5, 'adjust')     叠加调整
-        '格斗-2' → ('格斗', -2, 'adjust')    叠加调整
-        '力量5'  → ('力量', 5, 'absolute')    绝对指定
-        '力量'   → ('力量', None, None)       无手动值
+    例: '力量+5'     → ('力量', 5, 'adjust', None)
+        '格斗-2'     → ('格斗', -2, 'adjust', None)
+        '力量5'      → ('力量', 5, 'absolute', None)
+        '驯兽/教育'  → ('驯兽', None, None, '教育')
+        '格斗+3/灵感'→ ('格斗', 3, 'adjust', '灵感')
+        '力量'       → ('力量', None, None, None)
 
-    返回: (clean_name, value_or_None, mode_or_None)
+    返回: (clean_name, value_or_None, mode_or_None, override_attr_or_None)
           mode: 'adjust'=叠加, 'absolute'=覆盖
     """
-    # 先匹配带符号的：+N 或 -N（叠加调整）
+    override_attr = None
+    # 先提取 /属性 后缀（改判属性）
+    slash_match = re.search(r'/(.+)$', raw_target)
+    if slash_match:
+        override_attr = slash_match.group(1).strip()
+        raw_target = raw_target[:slash_match.start()].strip()
+    # 匹配带符号的：+N 或 -N（叠加调整）
     match = re.search(r'([+\-]\d+)$', raw_target)
     if match:
         mod_str = match.group(1)
         clean = raw_target[:match.start()].strip()
         if clean:
-            return (clean, int(mod_str), 'adjust')
-    # 再匹配纯数字后缀（绝对指定）
+            return (clean, int(mod_str), 'adjust', override_attr)
+    # 匹配纯数字后缀（绝对指定）
     match = re.search(r'(\d+)$', raw_target)
     if match:
         num_str = match.group(1)
         clean = raw_target[:match.start()].strip()
-        # 不能整个 target 都是数字（那是属性生成路由）
         if clean:
-            return (clean, int(num_str), 'absolute')
-    return (raw_target.strip(), None, None)
+            return (clean, int(num_str), 'absolute', override_attr)
+    return (raw_target.strip(), None, None, override_attr)
 
 
 def perform_d20_check(pcHash, hagID, target: str, nick: str,
                       extra_attr: int = None,
                       extra_skill: int = None,
                       absolute_attr: int = None,
-                      absolute_skill: int = None) -> str:
+                      absolute_skill: int = None,
+                      override_attr: str = None) -> str:
     """
     执行一次 D20 技能/属性检定。
 
@@ -247,7 +255,7 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
     # 仅 8 种属性名走属性检定，其它（含用户自定义）一律技能
     attr_names = [a['name'] for a in config.attrs_v3]
     is_skill = target not in attr_names
-    linked_attr_name = config.SKILL_ATTR_MAP.get(target, '力量')
+    linked_attr_name = override_attr if override_attr else config.SKILL_ATTR_MAP.get(target, '力量')
 
     # 读取卡片属性值
     card_attr = _get_user_stat(pcHash, hagID, linked_attr_name)
@@ -417,12 +425,13 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str) -> str:
             '诡秘规则帮助', '暂无帮助信息'
         )
     # 解析手动加值后缀
-    clean_target, manual_mod, mod_mode = _parse_manual_modifier(target)
+    clean_target, manual_mod, mod_mode, override_attr = _parse_manual_modifier(target)
 
     if clean_target is None:
         clean_target = target
         manual_mod = None
         mod_mode = None
+        override_attr = None
 
     # 检查目标是否在已知的技能/属性列表中
     found = None
@@ -457,20 +466,25 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str) -> str:
             # 纯数字格式 → 绝对指定（数字表示技能等级，非加值）
             if is_skill:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
-                                         absolute_skill=manual_mod)
+                                         absolute_skill=manual_mod,
+                                         override_attr=override_attr)
             else:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
-                                         absolute_attr=manual_mod)
+                                         absolute_attr=manual_mod,
+                                         override_attr=override_attr)
         else:
             # +/-格式 → 叠加调整
             if is_skill:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
-                                         extra_skill=manual_mod)
+                                         extra_skill=manual_mod,
+                                         override_attr=override_attr)
             else:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
-                                         extra_attr=manual_mod)
+                                         extra_attr=manual_mod,
+                                         override_attr=override_attr)
     else:
-        return perform_d20_check(pcHash, hagID, final_target, nick)
+        return perform_d20_check(pcHash, hagID, final_target, nick,
+                                 override_attr=override_attr)
 
 
 def handle_sc_command(pcHash, hagID, nick: str,
