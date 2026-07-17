@@ -1,6 +1,6 @@
 {
     "name": "诡秘规则插件",
-    "author": "少年狐 (AI assisted)",
+    "author": "少年狐",
     "namespace": "GuimiRulePlugin",
     "message_mode": "old_string",
     "info": "诡秘之主D20跑团规则插件 v0.0.1 —— 属性生成、技能/属性检定、理智检定 (AI编程)",
