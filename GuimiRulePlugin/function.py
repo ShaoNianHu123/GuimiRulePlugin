@@ -296,8 +296,8 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
 
     total = d20 + bonus
 
-    is_crit_success = (d20 == 1)
-    is_crit_fail = (d20 == 20)
+    is_crit_success = (d20 == 20)
+    is_crit_fail = (d20 == 1)
 
     lines.append(f'= {total}')
 
