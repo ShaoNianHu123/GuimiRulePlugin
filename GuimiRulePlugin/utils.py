@@ -213,8 +213,8 @@ def parse_gm_command(message_text: str) -> dict:
 
     rest = text[len(matched_prefix):]
 
-    # 必须以「gm」或「GM」开头（不区分大小写）
-    if not (rest.lower().startswith('gm') and (len(rest) == 2 or rest[2] in (' ', '\u3000'))):
+    # 必须以「gm」或「GM」开头
+    if not rest.lower().startswith('gm'):
         return result
 
     result['is_gm'] = True
@@ -261,8 +261,8 @@ def parse_sc_command(message_text: str) -> dict:
 
     rest = text[len(matched_prefix):]
 
-    # 必须「sc」开头（不区分大小写）
-    if not (rest.lower().startswith('sc') and (len(rest) == 2 or rest[2] in (' ', '\u3000'))):
+    # 必须「sc」开头
+    if not rest.lower().startswith('sc'):
         return result
 
     result['is_sc'] = True
