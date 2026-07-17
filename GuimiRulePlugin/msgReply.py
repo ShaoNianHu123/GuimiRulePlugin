@@ -229,10 +229,19 @@ def unity_reply(plugin_event, Proc):
     cmd_sc = GuimiRulePlugin.utils.parse_sc_command(msg_text)
     cmd_attr = GuimiRulePlugin.utils.parse_command(msg_text)
     cmd_gm = GuimiRulePlugin.utils.parse_gm_command(msg_text)
+    cmd_gmb = GuimiRulePlugin.utils.parse_gmb_command(msg_text)
+    cmd_gmp = GuimiRulePlugin.utils.parse_gmp_command(msg_text)
 
     # gmsc 优先：防止 .gmsc 被 .gm 误匹配
     if cmd_sc['is_sc']:
-        cmd_gm = {'is_gm': False, 'target': None, 'error': None}
+        cmd_gm = {'is_gm': False, 'target': None, 'error': None, 'roll_mode': None}
+
+    # .gmb → 奖励投版本
+    if cmd_gmb['is_gm']:
+        cmd_gm = cmd_gmb
+    # .gmp → 惩罚投版本
+    if cmd_gmp['is_gm']:
+        cmd_gm = cmd_gmp
 
     # 情况1: .诡秘 后面跟了技能/属性名 → 当作 .gm 检定
     if cmd_attr['is_guimi'] and cmd_attr['error']:
@@ -292,6 +301,7 @@ def unity_reply(plugin_event, Proc):
                 hagID=hagID,
                 target=cmd_gm['target'],
                 nick=nick,
+                roll_mode=cmd_gm.get('roll_mode'),
             )
             replyMsg(plugin_event, reply_text)
         except Exception as e:

@@ -447,15 +447,18 @@ def handle_stat_command(nick: str, count: int, is_v4: bool = False) -> str:
     return build_attr_reply(nick, count, is_v4)
 
 
-def handle_gm_command(pcHash, hagID, target: str, nick: str) -> str:
-    """处理 .gm 检定命令。支持手动加值格式如 .gm力量+5 或 .gm格斗+3。"""
+def handle_gm_command(pcHash, hagID, target: str, nick: str,
+                      roll_mode: str = None) -> str:
+    """处理 .gm 检定命令。支持手动加值、改判属性、奖励投/惩罚投。"""
     # help 指令（双保险）
     if target.strip().lower() == 'help':
-        return msgCustom.dictHelpDocTemp.get(
-            '诡秘规则帮助', '暂无帮助信息'
-        )
+        return msgCustom.dictHelpDocTemp.get('诡秘规则帮助', '暂无帮助信息')
     # 解析手动加值后缀
-    clean_target, manual_mod, mod_mode, override_attr, roll_mode = _parse_manual_modifier(target)
+    clean_target, manual_mod, mod_mode, override_attr, parsed_roll_mode = _parse_manual_modifier(target)
+
+    # 外部传入的 roll_mode（来自 .gmb/.gmp/.gm 优势 等）优先
+    if roll_mode:
+        parsed_roll_mode = roll_mode
 
     if clean_target is None:
         clean_target = target
@@ -499,28 +502,28 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str) -> str:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          absolute_skill=manual_mod,
                                          override_attr=override_attr,
-                                         roll_mode=roll_mode)
+                                         roll_mode=parsed_roll_mode)
             else:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          absolute_attr=manual_mod,
                                          override_attr=override_attr,
-                                         roll_mode=roll_mode)
+                                         roll_mode=parsed_roll_mode)
         else:
             # +/-格式 → 叠加调整
             if is_skill:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          extra_skill=manual_mod,
                                          override_attr=override_attr,
-                                         roll_mode=roll_mode)
+                                         roll_mode=parsed_roll_mode)
             else:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          extra_attr=manual_mod,
                                          override_attr=override_attr,
-                                         roll_mode=roll_mode)
+                                         roll_mode=parsed_roll_mode)
     else:
         return perform_d20_check(pcHash, hagID, final_target, nick,
                                  override_attr=override_attr,
-                                 roll_mode=roll_mode)
+                                 roll_mode=parsed_roll_mode)
 
 
 def handle_sc_command(pcHash, hagID, nick: str,

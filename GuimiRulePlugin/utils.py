@@ -225,7 +225,54 @@ def parse_gm_command(message_text: str) -> dict:
         result['error'] = '请指定技能或属性名称，如 .gm力量 或 .gm格斗'
         return result
 
+    # 中文前置：.gm 优势 力量 / .gm 劣势 格斗
+    roll_mode = None
+    for keyword, mode in [('优势', 'adv'), ('劣势', 'dis')]:
+        if tail.startswith(keyword) and len(tail) > len(keyword):
+            roll_mode = mode
+            tail = tail[len(keyword):].strip()
+            break
+
     result['target'] = tail
+    result['roll_mode'] = roll_mode
+    return result
+
+
+def parse_gmb_command(message_text: str) -> dict:
+    """解析「.gmb <技能/属性>」奖励投命令。"""
+    result = {'is_gm': False, 'target': None, 'error': None, 'roll_mode': 'adv'}
+    text = message_text.strip()
+    for prefix in config.allowed_prefix_list:
+        if text.startswith(prefix):
+            rest = text[len(prefix):]
+            if not rest.lower().startswith('gmb'):
+                return {'is_gm': False, 'target': None, 'error': None, 'roll_mode': None}
+            tail = rest[3:].strip()
+            if not tail:
+                result['error'] = '请指定技能或属性名称，如 .gmb力量'
+                return result
+            result['is_gm'] = True
+            result['target'] = tail
+            return result
+    return result
+
+
+def parse_gmp_command(message_text: str) -> dict:
+    """解析「.gmp <技能/属性>」惩罚投命令。"""
+    result = {'is_gm': False, 'target': None, 'error': None, 'roll_mode': 'dis'}
+    text = message_text.strip()
+    for prefix in config.allowed_prefix_list:
+        if text.startswith(prefix):
+            rest = text[len(prefix):]
+            if not rest.lower().startswith('gmp'):
+                return {'is_gm': False, 'target': None, 'error': None, 'roll_mode': None}
+            tail = rest[3:].strip()
+            if not tail:
+                result['error'] = '请指定技能或属性名称，如 .gmp力量'
+                return result
+            result['is_gm'] = True
+            result['target'] = tail
+            return result
     return result
 
 
