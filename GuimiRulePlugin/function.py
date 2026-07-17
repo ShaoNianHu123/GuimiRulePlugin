@@ -172,22 +172,26 @@ def _parse_skill_level(skill_value: int) -> tuple:
     """
     根据技能值解析技能等级和加值。
 
+    等级编号（0-based）：0=未受训, 1=受训, 2=熟练,
+    3=进阶, 4=精通, 5=博学, 6=大师。
+    小于 0 视为未受训。
+
     返回: (等级名, 加值)
     """
+    level_map = [
+        ('未受训', -4),
+        ('受训', 0),
+        ('熟练', 2),
+        ('进阶', 4),
+        ('精通', 6),
+        ('博学', 8),
+        ('大师', 10),
+    ]
     if skill_value < 0:
-        return ('未受训', -4)
-    elif skill_value == 0:
-        return ('受训', 0)
-    elif skill_value <= 1:
-        return ('熟练', 2)
-    elif skill_value <= 2:
-        return ('进阶', 4)
-    elif skill_value <= 3:
-        return ('精通', 6)
-    elif skill_value <= 4:
-        return ('博学', 8)
-    else:
-        return ('大师', 10)
+        skill_value = 0
+    if skill_value >= len(level_map):
+        skill_value = len(level_map) - 1
+    return level_map[skill_value]
 
 
 def _parse_manual_modifier(raw_target: str) -> tuple:
@@ -273,8 +277,8 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
         level_name, card_skill_bonus = _parse_skill_level(card_skill)
 
         if absolute_skill is not None:
-            skill_bonus = absolute_skill
-            skill_info = f' + 技能{target}(手动指定:{skill_bonus:+d})'
+            lv_name, skill_bonus = _parse_skill_level(absolute_skill)
+            skill_info = f' + 技能{target}(手动指定 等级{absolute_skill} {lv_name}:{skill_bonus:+d})'
         else:
             extra_s = extra_skill if extra_skill is not None else 0
             skill_bonus = card_skill_bonus + extra_s
@@ -442,10 +446,13 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str) -> str:
     final_target = found if found is not None else clean_target
 
     # 手动加值判定
-    is_skill = final_target in config.SKILL_ATTR_MAP
+    # 不在已知列表中的名称默认视为技能（属性仅8种，误判率低）
+    is_skill = final_target in config.SKILL_ATTR_MAP or final_target not in [
+        a['name'] for a in config.attrs_v3
+    ]
     if manual_mod is not None:
         if mod_mode == 'absolute':
-            # 纯数字格式 → 绝对指定
+            # 纯数字格式 → 绝对指定（数字表示技能等级，非加值）
             if is_skill:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          absolute_skill=manual_mod)
