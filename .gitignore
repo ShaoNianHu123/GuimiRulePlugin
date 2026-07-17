@@ -4,3 +4,8 @@ __pycache__/
 *.pyc
 *.pyo
 _temp_opk/
+
+# 打包产物和发布文件（仅出现在 Releases）
+*.opk
+*.zip
+gm.json
