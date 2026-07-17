@@ -158,8 +158,26 @@ def parse_command(message_text: str) -> dict:
         count_part = tail[3:].strip()
         result['sub_cmd'] = 'attr'
     else:
+        # tail 不是版本号前缀，如果纯数字才作为数量
         count_part = tail.strip()
         result['sub_cmd'] = 'attr'
+        if count_part.isdigit():
+            num = int(count_part)
+            if num < 1:
+                result['error'] = '参数错误'
+                return result
+            if num > config.max_generate_count:
+                result['error'] = (
+                    '"你应该去向伟大的宿命之环祈祷，'
+                    '这要观察的【命运】也太多了，我没这么大能耐。"'
+                )
+                return result
+            result['count'] = num
+        elif count_part:
+            # 非纯数字 → 当参数错误，交给互通路由转 gm
+            result['error'] = '参数错误'
+            return result
+        return result
 
     digit_match = re.search(r'\d+', count_part)
     if digit_match:
