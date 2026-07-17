@@ -189,15 +189,39 @@ def _parse_skill_level(skill_value: int) -> tuple:
         return ('大师', 10)
 
 
-def perform_d20_check(pcHash, hagID, target: str, nick: str) -> str:
+def _parse_manual_modifier(raw_target: str) -> tuple:
+    """
+    从目标字符串中分离技能/属性名和手动加值。
+
+    例: '力量+5' → ('力量', 5)
+        '格斗-2' → ('格斗', -2)
+        '力量'   → ('力量', None)
+        '手枪+3' → ('手枪', 3)
+
+    返回: (clean_name, manual_modifier_or_None)
+    """
+    match = re.search(r'([+\-]\d+)$', raw_target)
+    if match:
+        mod_str = match.group(1)
+        clean = raw_target[:match.start()].strip()
+        if clean:
+            return (clean, int(mod_str))
+    return (raw_target.strip(), None)
+
+
+def perform_d20_check(pcHash, hagID, target: str, nick: str,
+                      manual_attr: int = None,
+                      manual_skill: int = None) -> str:
     """
     执行一次 D20 技能/属性检定。
 
     参数:
         pcHash: 用户哈希
         hagID: 群组上下文
-        target: 目标技能或属性名称
+        target: 目标技能或属性名称（已去除手动加值后缀）
         nick: 发送者昵称
+        manual_attr: 手动指定的属性值（None=从角色卡读取）
+        manual_skill: 手动指定的技能加值（None=从角色卡读取）
 
     返回: 格式化的检定结果字符串
     """
@@ -207,29 +231,39 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str) -> str:
     is_skill = target in config.SKILL_ATTR_MAP
     linked_attr_name = config.SKILL_ATTR_MAP.get(target, target)
 
-    # 读取属性值
-    attr_val = _get_user_stat(pcHash, hagID, linked_attr_name)
+    # 读取属性值：手动值优先，否则读角色卡
+    if manual_attr is not None:
+        attr_val = manual_attr
+        attr_source = '(手动)'
+    else:
+        attr_val = _get_user_stat(pcHash, hagID, linked_attr_name)
+        attr_source = ''
 
     # 构建检定信息
     lines = []
-    lines.append(f'<{nick}>对【{target}】进行检定：')
+    manual_tag = '【手动加值】' if (manual_attr is not None or manual_skill is not None) else ''
+    lines.append(f'<{nick}>对【{target}】进行检定：{manual_tag}')
 
     bonus = attr_val
     skill_info = ''
 
     if is_skill:
         # 技能检定：rd20 + 关联属性 + 技能加值
-        skill_val = _get_user_skill(pcHash, hagID, target)
-        level_name, skill_bonus = _parse_skill_level(skill_val)
+        if manual_skill is not None:
+            skill_bonus = manual_skill
+            skill_info = f' + 技能{target}(手动:{skill_bonus:+d})'
+        else:
+            skill_val = _get_user_skill(pcHash, hagID, target)
+            level_name, skill_bonus = _parse_skill_level(skill_val)
+            skill_info = f' + 技能{target}({level_name}:{skill_bonus:+d})'
         bonus = attr_val + skill_bonus
-        skill_info = f' + 技能{target}({level_name}:{skill_bonus:+d})'
         lines.append(
-            f'rd20({d20}) + {linked_attr_name}({attr_val}){skill_info}'
+            f'rd20({d20}) + {linked_attr_name}({attr_val}{attr_source}){skill_info}'
         )
     else:
         # 属性检定：rd20 + 属性值
         lines.append(
-            f'rd20({d20}) + {linked_attr_name}({attr_val})'
+            f'rd20({d20}) + {linked_attr_name}({attr_val}{attr_source})'
         )
 
     total = d20 + bonus
@@ -357,36 +391,48 @@ def handle_stat_command(nick: str, count: int, is_v4: bool = False) -> str:
 
 
 def handle_gm_command(pcHash, hagID, target: str, nick: str) -> str:
-    """处理 .gm 检定命令。"""
+    """处理 .gm 检定命令。支持手动加值格式如 .gm力量+5 或 .gm格斗+3。"""
+    # 解析手动加值后缀
+    clean_target, manual_mod = _parse_manual_modifier(target)
+
+    if clean_target is None:
+        clean_target = target
+        manual_mod = None
+
     # 检查目标是否在已知的技能/属性列表中
-    normalized = target
-    # 尝试模糊匹配（支持部分名称）
-    # 精确匹配优先
     found = None
-    if normalized in config.SKILL_ATTR_MAP:
-        found = normalized
+    if clean_target in config.SKILL_ATTR_MAP:
+        found = clean_target
     else:
         # 模糊匹配：技能列表中查找
         for skill_name in config.SKILL_ATTR_MAP:
-            if skill_name == normalized or skill_name.startswith(normalized):
+            if skill_name == clean_target or skill_name.startswith(clean_target):
                 found = skill_name
                 break
         # 属性列表中查找
         if found is None:
             for attr_def in config.attrs_v3:
-                if attr_def['name'] == normalized:
-                    found = normalized
+                if attr_def['name'] == clean_target:
+                    found = clean_target
                     break
             for attr_def in config.attrs_v4:
-                if attr_def['name'] == normalized:
-                    found = normalized
+                if attr_def['name'] == clean_target:
+                    found = clean_target
                     break
 
-    if found is not None:
-        return perform_d20_check(pcHash, hagID, found, nick)
+    final_target = found if found is not None else clean_target
+
+    # 手动加值判定：若目标是属性名（非技能），则 manual_mod 视为属性值
+    is_skill = final_target in config.SKILL_ATTR_MAP
+    if manual_mod is not None:
+        if is_skill:
+            return perform_d20_check(pcHash, hagID, final_target, nick,
+                                     manual_skill=manual_mod)
+        else:
+            return perform_d20_check(pcHash, hagID, final_target, nick,
+                                     manual_attr=manual_mod)
     else:
-        # 未找到，仍然尝试直接检定（用户可能输入的是角色卡中的自定义技能名）
-        return perform_d20_check(pcHash, hagID, normalized, nick)
+        return perform_d20_check(pcHash, hagID, final_target, nick)
 
 
 def handle_sc_command(pcHash, hagID, nick: str,
