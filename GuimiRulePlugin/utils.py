@@ -249,6 +249,7 @@ def parse_gmb_command(message_text: str) -> dict:
                 return {'is_gm': False, 'target': None, 'error': None, 'roll_mode': None}
             tail = rest[3:].strip()
             if not tail:
+                result['is_gm'] = True
                 result['error'] = '请指定技能或属性名称，如 .gmb力量'
                 return result
             result['is_gm'] = True
@@ -268,6 +269,7 @@ def parse_gmp_command(message_text: str) -> dict:
                 return {'is_gm': False, 'target': None, 'error': None, 'roll_mode': None}
             tail = rest[3:].strip()
             if not tail:
+                result['is_gm'] = True
                 result['error'] = '请指定技能或属性名称，如 .gmp力量'
                 return result
             result['is_gm'] = True
