@@ -1,0 +1,6 @@
+# 诡秘规则插件 - Git 忽略规则
+.reasonix/
+__pycache__/
+*.pyc
+*.pyo
+_temp_opk/

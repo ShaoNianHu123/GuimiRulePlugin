@@ -1,0 +1,23 @@
+{
+    "name": "诡秘规则插件",
+    "author": "Reasonix (AI assisted)",
+    "namespace": "GuimiRulePlugin",
+    "message_mode": "old_string",
+    "info": "诡秘之主D20跑团规则插件 v0.0.1 —— 属性生成、技能/属性检定、理智检定 (AI编程)",
+    "version": "0.0.1",
+    "svn": 1,
+    "compatible_svn": 190,
+    "priority": 19990,
+    "support": [
+        {
+            "sdk": "onebot",
+            "platform": "qq",
+            "model": "all"
+        },
+        {
+            "sdk": "all",
+            "platform": "all",
+            "model": "all"
+        }
+    ]
+}
