@@ -220,10 +220,10 @@ def unity_reply(plugin_event, Proc):
 
     # 情况1: .诡秘 后面跟了技能/属性名 → 当作 .gm 检定
     if cmd_attr['is_guimi'] and cmd_attr['error']:
-        # 提取 .诡秘 后面的 tail，当作 gm 目标
         tail = GuimiRulePlugin.utils.extract_guimi_tail(msg_text)
         if tail:
             cmd_gm = {'is_gm': True, 'target': tail, 'error': None}
+            cmd_attr = {'is_guimi': False, 'sub_cmd': None, 'count': 1, 'error': None}
 
     # 情况2: .gm 后面跟了纯数字 → 当作 .诡秘 属性生成
     if cmd_gm['is_gm'] and cmd_gm['target'] is not None and cmd_gm['target'].isdigit():
