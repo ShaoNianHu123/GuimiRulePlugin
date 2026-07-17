@@ -16,18 +16,61 @@ import traceback
 
 
 def unity_init(plugin_event, Proc):
-    """插件初始化——暂不处理。"""
-    pass
+    """插件初始化——安装GM模板到 OlivaDiceCore（必须在 ODC 扫描模板目录前完成）。"""
+    try:
+        _install_template(Proc)
+    except Exception:
+        pass
 
 
 def data_init(plugin_event, Proc):
-    """数据初始化——注入自定义回复到 OlivaDiceCore 全局字典。"""
+    """数据初始化——注入自定义回复 + 安装GM模板到 OlivaDiceCore。"""
+    # 注入自定义回复
     try:
         GuimiRulePlugin.msgCustomManager.initMsgCustom(Proc.Proc_data['bot_info_dict'])
     except Exception as e:
         GuimiRulePlugin.utils.error_log(
-            Proc, f'data_init 异常: {type(e).__name__}: {e}'
+            Proc, f'data_init msgCustom 异常: {type(e).__name__}: {e}'
         )
+
+
+def _install_template(Proc) -> None:
+    """将 gm.json 模板复制到 OlivaDiceCore 的 extend/template/ 目录。"""
+    import os
+    import shutil
+
+    try:
+        data_dir = OlivaDiceCore.pcCardData.dataDirRoot
+        template_dir = os.path.join(data_dir, 'unity', 'extend', 'template')
+    except Exception:
+        GuimiRulePlugin.utils.error_log(Proc, '无法获取 OlivaDiceCore 数据目录，跳过模板安装')
+        return
+
+    os.makedirs(template_dir, exist_ok=True)
+
+    src = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        'template', 'gm.json'
+    )
+    dst = os.path.join(template_dir, 'gm.json')
+
+    # 只在目标不存在或源文件更新时才覆盖
+    need_copy = True
+    if os.path.exists(dst):
+        try:
+            src_mtime = os.path.getmtime(src)
+            dst_mtime = os.path.getmtime(dst)
+            if dst_mtime >= src_mtime:
+                need_copy = False
+        except Exception:
+            pass
+
+    if need_copy:
+        try:
+            shutil.copy2(src, dst)
+            GuimiRulePlugin.utils.info_log(Proc, f'GM模板已安装到 {dst}')
+        except Exception as e:
+            GuimiRulePlugin.utils.error_log(Proc, f'GM模板安装失败: {e}')
 
 
 def unity_reply(plugin_event, Proc):

@@ -1,115 +1,121 @@
 {
-    "name": "诡秘之主D20",
-    "author": "Reasonix",
-    "info": "诡秘之主D20共创版 v3.5.0 规则模板",
-    "version": "1.0.0",
-    "mainDice": "1D20",
-    "synonyms": {
-        "力量": ["str", "STR"],
-        "体质": ["con", "CON"],
-        "敏捷": ["dex", "DEX"],
-        "魅力": ["app", "APP"],
-        "灵感": ["int", "灵感", "INT"],
-        "意志": ["pow", "POW"],
-        "教育": ["edu", "EDU"],
-        "幸运": ["luck", "LUCK"],
-        "理智": ["san", "SAN", "sanity"],
-        "生命": ["hp", "HP"],
-        "灵性": ["mp", "MP"],
-        "物理防御": ["闪避"],
-        "意志防御": [],
-        "身体强度": [],
-        "灵体强度": [],
-        "移动力": []
-    },
-    "skill": [
-        {"name": "力量", "type": "attribute", "max": 6, "min": 0},
-        {"name": "体质", "type": "attribute", "max": 6, "min": 0},
-        {"name": "敏捷", "type": "attribute", "max": 6, "min": 0},
-        {"name": "魅力", "type": "attribute", "max": 6, "min": 0},
-        {"name": "灵感", "type": "attribute", "max": 6, "min": 0},
-        {"name": "意志", "type": "attribute", "max": 6, "min": 0},
-        {"name": "教育", "type": "attribute", "max": 6, "min": 0},
-        {"name": "幸运", "type": "attribute", "max": 6, "min": 0},
-        {"name": "理智", "type": "derived", "max": 99, "min": 0},
-        {"name": "灵性", "type": "derived", "max": 99, "min": 0},
-        {"name": "生命", "type": "derived", "max": 99, "min": 0},
-        {"name": "物理防御", "type": "defense", "max": 99, "min": 0},
-        {"name": "意志防御", "type": "defense", "max": 99, "min": 0},
-        {"name": "身体强度", "type": "defense", "max": 99, "min": 0},
-        {"name": "灵体强度", "type": "defense", "max": 99, "min": 0},
-        {"name": "移动力", "type": "derived", "max": 99, "min": 0},
-        {"name": "格斗", "type": "skill", "max": 6, "min": -1},
-        {"name": "肉搏", "type": "skill", "max": 6, "min": -1},
-        {"name": "刀剑", "type": "skill", "max": 6, "min": -1},
-        {"name": "长柄武器", "type": "skill", "max": 6, "min": -1},
-        {"name": "巨型武器", "type": "skill", "max": 6, "min": -1},
-        {"name": "特种武器", "type": "skill", "max": 6, "min": -1},
-        {"name": "投掷", "type": "skill", "max": 6, "min": -1},
-        {"name": "射击", "type": "skill", "max": 6, "min": -1},
-        {"name": "手枪", "type": "skill", "max": 6, "min": -1},
-        {"name": "步枪", "type": "skill", "max": 6, "min": -1},
-        {"name": "猎枪", "type": "skill", "max": 6, "min": -1},
-        {"name": "机枪", "type": "skill", "max": 6, "min": -1},
-        {"name": "弓箭", "type": "skill", "max": 6, "min": -1},
-        {"name": "弩", "type": "skill", "max": 6, "min": -1},
-        {"name": "闪避", "type": "skill", "max": 6, "min": -1},
-        {"name": "潜行", "type": "skill", "max": 6, "min": -1},
-        {"name": "隐匿", "type": "skill", "max": 6, "min": -1},
-        {"name": "偷窃", "type": "skill", "max": 6, "min": -1},
-        {"name": "巧手", "type": "skill", "max": 6, "min": -1},
-        {"name": "取悦", "type": "skill", "max": 6, "min": -1},
-        {"name": "信誉", "type": "skill", "max": 6, "min": -1},
-        {"name": "欺骗", "type": "skill", "max": 6, "min": -1},
-        {"name": "贸易", "type": "skill", "max": 6, "min": -1},
-        {"name": "恐吓", "type": "skill", "max": 6, "min": -1},
-        {"name": "说服", "type": "skill", "max": 6, "min": -1},
-        {"name": "挑衅", "type": "skill", "max": 6, "min": -1},
-        {"name": "心理学", "type": "skill", "max": 6, "min": -1},
-        {"name": "心理引导", "type": "skill", "max": 6, "min": -1},
-        {"name": "驯兽", "type": "skill", "max": 6, "min": -1},
-        {"name": "侦查", "type": "skill", "max": 6, "min": -1},
-        {"name": "追踪", "type": "skill", "max": 6, "min": -1},
-        {"name": "聆听", "type": "skill", "max": 6, "min": -1},
-        {"name": "搜索", "type": "skill", "max": 6, "min": -1},
-        {"name": "神秘学", "type": "skill", "max": 6, "min": -1},
-        {"name": "历史", "type": "skill", "max": 6, "min": -1},
-        {"name": "考古", "type": "skill", "max": 6, "min": -1},
-        {"name": "医学", "type": "skill", "max": 6, "min": -1},
-        {"name": "生物学", "type": "skill", "max": 6, "min": -1},
-        {"name": "药学", "type": "skill", "max": 6, "min": -1},
-        {"name": "化学", "type": "skill", "max": 6, "min": -1},
-        {"name": "植物学", "type": "skill", "max": 6, "min": -1},
-        {"name": "农业", "type": "skill", "max": 6, "min": -1},
-        {"name": "机械维修", "type": "skill", "max": 6, "min": -1},
-        {"name": "工艺制造", "type": "skill", "max": 6, "min": -1},
-        {"name": "领航", "type": "skill", "max": 6, "min": -1},
-        {"name": "天文学", "type": "skill", "max": 6, "min": -1},
-        {"name": "星象学", "type": "skill", "max": 6, "min": -1},
-        {"name": "法律", "type": "skill", "max": 6, "min": -1},
-        {"name": "科学", "type": "skill", "max": 6, "min": -1},
-        {"name": "非凡学识", "type": "skill", "max": 6, "min": -1},
-        {"name": "非凡之物学", "type": "skill", "max": 6, "min": -1},
-        {"name": "鲁恩语", "type": "language", "max": 6, "min": -1},
-        {"name": "因蒂斯语", "type": "language", "max": 6, "min": -1},
-        {"name": "弗萨克语", "type": "language", "max": 6, "min": -1},
-        {"name": "高原语", "type": "language", "max": 6, "min": -1},
-        {"name": "伦堡语", "type": "language", "max": 6, "min": -1},
-        {"name": "古弗萨克语", "type": "language", "max": 6, "min": -1},
-        {"name": "都坦语", "type": "language", "max": 6, "min": -1},
-        {"name": "高地语", "type": "language", "max": 6, "min": -1},
-        {"name": "驾驶", "type": "skill", "max": 6, "min": -1},
-        {"name": "骑乘", "type": "skill", "max": 6, "min": -1},
-        {"name": "表演", "type": "skill", "max": 6, "min": -1},
-        {"name": "美术", "type": "skill", "max": 6, "min": -1},
-        {"name": "音乐", "type": "skill", "max": 6, "min": -1},
-        {"name": "读唇", "type": "skill", "max": 6, "min": -1}
-    ],
-    "checkRules": {
-        "default": {
-            "type": "direct",
-            "info": "D20属性/技能检定 — rd20+属性+技能加值",
-            "note": "大成功=rd20出1，大失败=rd20出20"
+    "gm": {
+        "mainDice": "1D20",
+        "skill": {
+            "属性": [
+                "力量", "体质", "敏捷", "魅力",
+                "灵感", "意志", "教育", "幸运"
+            ],
+            "衍生": [
+                "理智", "生命", "灵性",
+                "物理防御", "意志防御", "身体强度", "灵体强度",
+                "移动力"
+            ],
+            "战斗技能": [
+                "格斗", "肉搏", "刀剑", "长柄武器", "巨型武器", "特种武器",
+                "投掷", "射击", "手枪", "步枪", "猎枪", "机枪",
+                "弓箭", "弩", "闪避"
+            ],
+            "敏捷技能": [
+                "潜行", "隐匿", "偷窃", "巧手",
+                "驾驶", "骑乘"
+            ],
+            "社交技能": [
+                "取悦", "信誉", "欺骗", "贸易", "恐吓",
+                "说服", "挑衅", "心理学", "心理引导", "驯兽",
+                "表演"
+            ],
+            "感知技能": [
+                "侦查", "追踪", "聆听", "搜索", "读唇"
+            ],
+            "知识技能": [
+                "神秘学", "历史", "考古", "医学", "生物学",
+                "药学", "化学", "植物学", "农业",
+                "机械维修", "工艺制造",
+                "领航", "天文学", "星象学",
+                "法律", "科学",
+                "非凡学识", "非凡之物学",
+                "美术", "音乐"
+            ],
+            "语言": [
+                "鲁恩语", "因蒂斯语", "弗萨克语", "高原语",
+                "伦堡语", "古弗萨克语", "都坦语", "高地语"
+            ]
+        },
+        "init": {
+            "力量": "2d3",
+            "体质": "2d3",
+            "敏捷": "2d3",
+            "魅力": "2d3",
+            "灵感": "2d3",
+            "意志": "2d3",
+            "教育": "2d3",
+            "幸运": "2d3"
+        },
+        "defaultSkillValue": {
+            "格斗": -1, "肉搏": -1, "刀剑": -1, "长柄武器": -1,
+            "巨型武器": -1, "特种武器": -1, "投掷": -1, "射击": -1,
+            "手枪": -1, "步枪": -1, "猎枪": -1, "机枪": -1,
+            "弓箭": -1, "弩": -1, "闪避": -1, "潜行": -1,
+            "隐匿": -1, "偷窃": -1, "巧手": -1,
+            "取悦": -1, "信誉": -1, "欺骗": -1, "贸易": -1,
+            "恐吓": -1, "说服": -1, "挑衅": -1, "心理学": -1,
+            "心理引导": -1, "驯兽": -1, "表演": -1,
+            "侦查": -1, "追踪": -1, "聆听": -1, "搜索": -1, "读唇": -1,
+            "神秘学": -1, "历史": -1, "考古": -1, "医学": -1,
+            "生物学": -1, "药学": -1, "化学": -1, "植物学": -1,
+            "农业": -1, "机械维修": -1, "工艺制造": -1,
+            "领航": -1, "天文学": -1, "星象学": -1,
+            "法律": -1, "科学": -1, "非凡学识": -1, "非凡之物学": -1,
+            "美术": -1, "音乐": -1,
+            "鲁恩语": -1, "因蒂斯语": -1, "弗萨克语": -1, "高原语": -1,
+            "伦堡语": -1, "古弗萨克语": -1, "都坦语": -1, "高地语": -1,
+            "驾驶": -1, "骑乘": -1
+        },
+        "mapping": {
+            "理智": "10 + ({意志})",
+            "生命": "10 + ({体质}) + ({序列数量}) * ({体质})",
+            "灵性": "({意志}) + ({灵感}) + ({序列数量}) * ({灵感})",
+            "物理防御": "10 + ({敏捷}) + ({闪避})",
+            "意志防御": "10 + ({意志})",
+            "身体强度": "10 + ({体质})",
+            "灵体强度": "({灵感}) + ({意志}) + ({体质}) / 2",
+            "移动力": "({力量}) + ({敏捷})"
+        },
+        "synonyms": {
+            "力量": ["str", "STR"],
+            "体质": ["con", "CON"],
+            "敏捷": ["dex", "DEX"],
+            "魅力": ["app", "APP"],
+            "灵感": ["int", "灵感", "INT"],
+            "意志": ["pow", "POW"],
+            "教育": ["edu", "EDU"],
+            "幸运": ["luck", "LUCK"],
+            "理智": ["san", "SAN", "sanity"],
+            "生命": ["hp", "HP"],
+            "灵性": ["mp", "MP"]
+        },
+        "showName": {
+            "力量": "力量", "体质": "体质", "敏捷": "敏捷",
+            "魅力": "魅力", "灵感": "灵感", "意志": "意志",
+            "教育": "教育", "幸运": "幸运",
+            "理智": "理智", "生命": "生命", "灵性": "灵性",
+            "物理防御": "物理防御", "意志防御": "意志防御",
+            "身体强度": "身体强度", "灵体强度": "灵体强度",
+            "移动力": "移动力"
+        },
+        "snTitle": "{tName} 力量{力量} 体质{体质} 敏捷{敏捷} 灵感{灵感} 意志{意志} san{理智}",
+        "checkRules": {
+            "default": {
+                "checkList": ["success", "fail"],
+                "success": {".<=": ["$roll", 100]},
+                "fail": {".>": ["$roll", 100]}
+            }
+        },
+        "customDefault": {},
+        "skillConfig": {
+            "skipEnhance": [],
+            "forceMapping": ["理智", "生命", "灵性", "物理防御", "意志防御", "身体强度", "灵体强度", "移动力"]
         }
     }
 }
