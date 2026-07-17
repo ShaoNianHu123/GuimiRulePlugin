@@ -279,3 +279,33 @@ def parse_sc_command(message_text: str) -> dict:
             result['loss_on_fail'] = parts[1]
 
     return result
+
+
+def extract_guimi_tail(message_text: str) -> str:
+    """
+    从「.诡秘<内容>」中提取「诡秘」后面的 tail。
+
+    当 .诡秘 后面的内容不是数字/版本号时，将其作为 .gm 的目标文本。
+
+    返回: tail 字符串，若无法提取则返回空字符串。
+    """
+    text = message_text.strip()
+    for prefix in config.allowed_prefix_list:
+        if text.startswith(prefix):
+            rest = text[len(prefix):]
+            if rest.startswith(config.main_command):
+                tail = rest[len(config.main_command):].strip()
+                # 排除纯数字和版本号（这些应该走属性生成）
+                if tail in ('', '3.0', '3.5', '4.0'):
+                    return ''
+                if tail.isdigit():
+                    return ''
+                if tail.startswith('4.0') and (len(tail) == 3 or tail[3:].strip().isdigit()):
+                    return ''
+                if tail.startswith('3.0') or tail.startswith('3.5'):
+                    rem = tail[3:].strip()
+                    if rem == '' or rem.isdigit():
+                        return ''
+                return tail
+            break
+    return ''

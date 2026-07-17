@@ -213,8 +213,30 @@ def unity_reply(plugin_event, Proc):
     except Exception:
         hagID = None
 
-    # ---- 处理 .诡秘 属性生成 ----
+    # ---- 处理 .诡秘 / .gm（互通路由）----
     cmd_attr = GuimiRulePlugin.utils.parse_command(msg_text)
+    cmd_gm = GuimiRulePlugin.utils.parse_gm_command(msg_text)
+
+    # 情况1: .诡秘 后面跟了技能/属性名 → 当作 .gm 检定
+    if cmd_attr['is_guimi'] and cmd_attr['error']:
+        # 提取 .诡秘 后面的 tail，当作 gm 目标
+        tail = GuimiRulePlugin.utils.extract_guimi_tail(msg_text)
+        if tail:
+            cmd_gm = {'is_gm': True, 'target': tail, 'error': None}
+
+    # 情况2: .gm 后面跟了纯数字 → 当作 .诡秘 属性生成
+    if cmd_gm['is_gm'] and cmd_gm['target'] is not None and cmd_gm['target'].isdigit():
+        num = int(cmd_gm['target'])
+        if num < 1:
+            replyMsg(plugin_event, '参数错误')
+            return
+        if num > GuimiRulePlugin.config.max_generate_count:
+            replyMsg(plugin_event, '"你应该去向伟大的宿命之环祈祷，这要观察的【命运】也太多了，我没这么大能耐。"')
+            return
+        cmd_attr = {'is_guimi': True, 'sub_cmd': 'attr', 'count': num, 'error': None}
+        cmd_gm = {'is_gm': False, 'target': None, 'error': None}
+
+    # ---- 处理属性生成 ----
     if cmd_attr['is_guimi']:
         if cmd_attr['error']:
             replyMsg(plugin_event, cmd_attr['error'])
@@ -229,7 +251,6 @@ def unity_reply(plugin_event, Proc):
         return
 
     # ---- 处理 .gm 技能/属性检定 ----
-    cmd_gm = GuimiRulePlugin.utils.parse_gm_command(msg_text)
     if cmd_gm['is_gm']:
         if cmd_gm['error']:
             replyMsg(plugin_event, cmd_gm['error'])
