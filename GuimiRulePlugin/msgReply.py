@@ -256,6 +256,13 @@ def unity_reply(plugin_event, Proc):
         if cmd_gm['error']:
             replyMsg(plugin_event, cmd_gm['error'])
             return
+        # help 指令
+        if cmd_gm['target'] and cmd_gm['target'].strip() == 'help':
+            help_text = GuimiRulePlugin.msgCustom.dictHelpDocTemp.get(
+                '诡秘规则帮助', '暂无帮助信息'
+            )
+            replyMsg(plugin_event, help_text)
+            return
         # 用户未通过 .st temp gm 绑定卡片时的提示
         if pcHash is None:
             replyMsg(
