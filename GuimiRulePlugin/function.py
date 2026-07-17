@@ -244,8 +244,10 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
     """
     d20 = random.randint(1, 20)
 
-    is_skill = target in config.SKILL_ATTR_MAP
-    linked_attr_name = config.SKILL_ATTR_MAP.get(target, target)
+    # 仅 8 种属性名走属性检定，其它（含用户自定义）一律技能
+    attr_names = [a['name'] for a in config.attrs_v3]
+    is_skill = target not in attr_names
+    linked_attr_name = config.SKILL_ATTR_MAP.get(target, '力量')
 
     # 读取卡片属性值
     card_attr = _get_user_stat(pcHash, hagID, linked_attr_name)
