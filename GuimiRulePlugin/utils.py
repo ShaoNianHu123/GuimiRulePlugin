@@ -296,6 +296,19 @@ def parse_gmp_command(message_text: str) -> dict:
     return result
 
 
+def parse_gmri_command(message_text: str) -> dict:
+    """解析「.gmri」先攻检定命令。"""
+    result = {'is_gmri': False}
+    text = message_text.strip()
+    for prefix in config.allowed_prefix_list:
+        if text.startswith(prefix):
+            rest = text[len(prefix):]
+            if rest.lower().startswith('gmri'):
+                result['is_gmri'] = True
+            return result
+    return result
+
+
 def parse_sc_command(message_text: str) -> dict:
     """
     解析「.sc [参数]」命令。

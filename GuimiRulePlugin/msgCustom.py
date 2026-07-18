@@ -45,6 +45,8 @@ dictHelpDocTemp = {
   .gmsc                 默认损失 1/1d2
   .gmsc 1d2/1d4         成功损失1d2，失败损失1d4
   .gmsc 1/1d6           成功损失1，失败损失1d6
+.gm 刷新/.gm 更新    根据序列/消化自动计算更新生命灵性理智
+.gmri                先攻检定（rd20 + 卡片敏捷）
 
 —— OlivaDiceCore 配套指令 ——
 .set temp gm            切换本群/频道诡秘房规

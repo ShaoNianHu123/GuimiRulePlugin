@@ -231,6 +231,7 @@ def unity_reply(plugin_event, Proc):
     cmd_gm = GuimiRulePlugin.utils.parse_gm_command(msg_text)
     cmd_gmb = GuimiRulePlugin.utils.parse_gmb_command(msg_text)
     cmd_gmp = GuimiRulePlugin.utils.parse_gmp_command(msg_text)
+    cmd_gmri = GuimiRulePlugin.utils.parse_gmri_command(msg_text)
 
     # gmsc 优先：防止 .gmsc 被 .gm 误匹配
     if cmd_sc['is_sc']:
@@ -242,6 +243,14 @@ def unity_reply(plugin_event, Proc):
     # .gmp → 惩罚投版本
     if cmd_gmp['is_gm']:
         cmd_gm = cmd_gmp
+    # .gmri → 先攻检定
+    if cmd_gmri['is_gmri']:
+        reply_text = GuimiRulePlugin.function.ri_check(
+            plugin_event=plugin_event,
+            pcHash=pcHash, hagID=hagID, nick=nick
+        )
+        replyMsg(plugin_event, reply_text)
+        return
 
     # 情况1: .诡秘 后面跟了技能/属性名 → 当作 .gm 检定
     if cmd_attr['is_guimi'] and cmd_attr['error']:
@@ -287,6 +296,13 @@ def unity_reply(plugin_event, Proc):
                 '诡秘规则帮助', '暂无帮助信息'
             )
             replyMsg(plugin_event, help_text)
+            return
+        # 刷新属性
+        if cmd_gm['target'] and cmd_gm['target'].strip() in ('刷新', '更新'):
+            reply_text = GuimiRulePlugin.function.refresh_derived_stats(
+                pcHash=pcHash, hagID=hagID, nick=nick
+            )
+            replyMsg(plugin_event, reply_text)
             return
         # 用户未通过 .st temp gm 绑定卡片时的提示
         if pcHash is None:

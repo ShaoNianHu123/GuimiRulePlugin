@@ -535,3 +535,109 @@ def handle_sc_command(pcHash, hagID, nick: str,
                       loss_on_fail: str = None) -> str:
     """处理 .sc 理智检定命令。"""
     return perform_san_check(pcHash, hagID, nick, loss_on_success, loss_on_fail)
+
+
+# ===================== 序列/消化 & 属性计算 =====================
+
+def _get_special_value(pcHash, hagID, key: str) -> int:
+    """读取角色卡中特殊值（序列/消化），未录入返回 None。"""
+    odc = _get_odc()
+    try:
+        val = odc.pcCard.pcCardDataGetBySkillName(pcHash, key, hagID)
+        if val is not None:
+            return int(val)
+    except Exception:
+        pass
+    return None
+
+
+# 保留：_get_special_value 供后续使用
+
+
+def refresh_derived_stats(pcHash, hagID, nick: str) -> str:
+    """
+    根据卡片中的序列等级、消化度、属性，自动计算并更新生命/灵性。
+    返回格式化的结果说明。
+    """
+    odc = _get_odc()
+    seq_raw = _get_special_value(pcHash, hagID, '序列')
+    digest = _get_special_value(pcHash, hagID, '消化') or 0
+    con = _get_user_stat(pcHash, hagID, '体质')
+    pow_val = _get_user_stat(pcHash, hagID, '意志')
+    int_val = _get_user_stat(pcHash, hagID, '灵感')
+
+    # 序列加成：序列9→1倍, 序列8→2倍, ..., 序列0→10倍
+    seq_mult = 0 if seq_raw is None else (10 - seq_raw)
+    digest_bonus = digest // 5
+
+    hp_new = 10 + con + seq_mult * con + digest_bonus
+    mp_new = pow_val + int_val + seq_mult * int_val + digest_bonus
+    san_new = 10 + pow_val
+
+    # 写入卡片
+    try:
+        odc.pcCard.setPcSkillAPI(
+            pcHash=pcHash, skillName='生命', skillValue=hp_new,
+            hagId=hagID
+        )
+        odc.pcCard.setPcSkillAPI(
+            pcHash=pcHash, skillName='灵性', skillValue=mp_new,
+            hagId=hagID
+        )
+        odc.pcCard.setPcSkillAPI(
+            pcHash=pcHash, skillName='理智', skillValue=san_new,
+            hagId=hagID
+        )
+    except Exception as e:
+        return f'更新失败：{e}'
+
+    seq_info = f'序列{seq_raw}（{seq_mult}倍）' if seq_raw is not None else '无序列'
+    return (
+        f'<{nick}> {seq_info}  消化{digest}（+{digest_bonus}）\n'
+        f'生命→{hp_new}  灵性→{mp_new}  理智→{san_new}  已更新'
+    )
+
+
+def ri_check(plugin_event, pcHash, hagID, nick: str) -> str:
+    """先攻检定：rd20 + 卡片敏捷，并注册到 ODC 先攻列表。"""
+    odc = _get_odc()
+    d20 = random.randint(1, 20)
+    dex = _get_user_stat(pcHash, hagID, '敏捷')
+    total = d20 + dex
+
+    # 注册到 ODC 的先攻系统
+    try:
+        platform = plugin_event.platform['platform']
+        bot_hash = plugin_event.bot_info.hash
+        user_id = plugin_event.data.user_id
+        odc.msgReplyModel.setUserConfigForInit(
+            tmp_hagID=(str(plugin_event.data.host_id) + '|' + str(plugin_event.data.group_id))
+                if plugin_event.data.host_id else str(plugin_event.data.group_id),
+            tmp_pc_platform=platform,
+            bot_hash=bot_hash,
+            config_key='groupInitList',
+            init_name=nick,
+            init_value=total,
+        )
+        odc.msgReplyModel.setUserConfigForInit(
+            tmp_hagID=(str(plugin_event.data.host_id) + '|' + str(plugin_event.data.group_id))
+                if plugin_event.data.host_id else str(plugin_event.data.group_id),
+            tmp_pc_platform=platform,
+            bot_hash=bot_hash,
+            config_key='groupInitParaList',
+            init_name=nick,
+            init_value=f'rd20+敏捷({dex})',
+        )
+        odc.msgReplyModel.setUserConfigForInit(
+            tmp_hagID=(str(plugin_event.data.host_id) + '|' + str(plugin_event.data.group_id))
+                if plugin_event.data.host_id else str(plugin_event.data.group_id),
+            tmp_pc_platform=platform,
+            bot_hash=bot_hash,
+            config_key='groupInitUserList',
+            init_name=nick,
+            init_value={'userId': user_id, 'platform': platform},
+        )
+    except Exception:
+        pass
+
+    return f'<{nick}>先攻检定：rd20({d20}) + 敏捷({dex}) = {total}  已加入先攻列表'
