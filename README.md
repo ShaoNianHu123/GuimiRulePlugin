@@ -1,5 +1,6 @@
 # 诡秘之主D20跑团规则插件 (GuimiRulePlugin)
 
+> **作者**：少年狐　|　[GitHub](https://github.com/ShaoNianHu123/GuimiRulePlugin)　|　QQ：1690676242  
 > **⚠️ 声明**：本插件由 **AI 辅助编程** 完成，使用 [olivos-plugin-developer](https://github.com/Desom-fu/OlivOS-Plugin-Skill) skill 开发，用于 **OlivOS** 框架。  
 > AI 不保证代码零缺陷，使用前请自行测试。
 

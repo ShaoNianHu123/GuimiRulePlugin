@@ -1,0 +1,12 @@
+{
+    "title": "诡秘之主D20跑团规则",
+    "ver": "1.0.0",
+    "author": "少年狐 (ShaoNianHu123)",
+    "dice_build": 612,
+    "brief": "诡秘之主D20共创版 v3.5.0 规则插件 —— 属性生成、D20技能/属性检定、理智检定、序列消化系统、先攻检定。从 OlivOS 移植。\n作者: 少年狐 | GitHub: https://github.com/ShaoNianHu123 | QQ: 1690676242",
+    "require": [],
+    "comment": "原 OlivOS GuimiRulePlugin v0.1.0 的 Dice! Lua 移植版。需要用户通过 .st 类指令自行管理人物卡数据。",
+    "helpdoc": {
+        "诡秘规则帮助": "【诡秘之主D20规则 v1.0.0 for Dice!】\n.诡秘 [数量]    随机生成属性（2d3, 2~6）\n.诡秘4.0 [数量] 4.0预览属性表\n.gm<技能/属性>   D20检定\n  加值: .gm力量+2 / .gm力量5\n  改判: .gm驯兽/教育\n  奖励: .gmb力量 / .gm 优势 力量\n  惩罚: .gmp力量 / .gm 劣势 力量\n.gmsc [损失骰]   理智检定\n.gm 刷新/更新    自动计算衍生属性\n.gmri            先攻检定\n\n—— Dice! 录入指令 ——\n.ob user <技能> <值>   存技能值\n.ob user <技能> rm     删技能\n.ob group <技能> <值>  存群配置\n\n例: .ob user 力量 5\n    .ob user 格斗 2"
+    }
+}
