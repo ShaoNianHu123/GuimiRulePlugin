@@ -9,3 +9,7 @@ _temp_opk/
 *.opk
 *.zip
 gm.json
+
+# 其它框架移植内容（不参与本项目）
+dice_mod/
+guimi_rule.zip
