@@ -63,7 +63,7 @@ def unity_reply(plugin_event, Proc):
     msgIsCommand = OlivaDiceCore.msgReply.msgIsCommand
 
     # ---- AT 检测 ----
-    tmp_at_str = OlivOS.messageAPI.PARA.at(plugin_event.base_info['self_id']).CQ()
+    tmp_at_str = OlivOS.messageAPI.PARA.at(plugin_event.base_info['self_id']).OP()
     tmp_id_str = str(plugin_event.base_info['self_id'])
     tmp_at_str_sub = None
     tmp_id_str_sub = None
@@ -71,15 +71,15 @@ def unity_reply(plugin_event, Proc):
         if plugin_event.data.extend['sub_self_id'] is not None:
             tmp_at_str_sub = OlivOS.messageAPI.PARA.at(
                 plugin_event.data.extend['sub_self_id']
-            ).CQ()
+            ).OP()
             tmp_id_str_sub = str(plugin_event.data.extend['sub_self_id'])
 
     tmp_reast_str = plugin_event.data.message
     flag_force_reply = False
     flag_is_command = False
 
-    # 处理 CQ 回复引用
-    if isMatchWordStart(tmp_reast_str, '[CQ:reply,id='):
+    # 处理 OP 回复引用
+    if isMatchWordStart(tmp_reast_str, '[OP:reply,id='):
         tmp_reast_str = skipToRight(tmp_reast_str, ']')
         tmp_reast_str = tmp_reast_str[1:]
 
@@ -87,11 +87,11 @@ def unity_reply(plugin_event, Proc):
     if flag_force_reply is False:
         tmp_reast_str_old = tmp_reast_str
         tmp_reast_obj = OlivOS.messageAPI.Message_templet(
-            'old_string', tmp_reast_str
+            'olivos_string', tmp_reast_str
         )
         tmp_at_list = []
         for tmp_reast_obj_this in tmp_reast_obj.data:
-            tmp_para_str_this = tmp_reast_obj_this.CQ()
+            tmp_para_str_this = tmp_reast_obj_this.OP()
             if type(tmp_reast_obj_this) is OlivOS.messageAPI.PARA.at:
                 tmp_at_list.append(str(tmp_reast_obj_this.data['id']))
                 tmp_reast_str = tmp_reast_str.lstrip(tmp_para_str_this)

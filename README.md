@@ -24,6 +24,10 @@
 
 ## 📋 更新日志
 
+### v0.1.1
+- 🔧 消息模式从 CQ 码(old_string)迁移到 OlivOS OP 码(olivos_string)
+- 🔧 版本号统一到 v0.1.1
+
 ### v0.1.0
 - ✨ 序列与消化度系统：`.st 序列9` `.st 消化12` 录入，`.gm 刷新`/`.gm 更新` 自动计算生命/灵性/理智
 - ✨ 衍生属性自动计算（生命=10+体质+序列加成+消化÷5，灵性=意志+灵感+序列加成+消化÷5，理智=10+意志）
@@ -69,7 +73,7 @@
 
 > ⚠️ 插件与模板**互相锁定**：
 > - 插件 → `requireTemplate: {name: "gm", minVersion: "1.0.0"}`
-> - 模板 → `requirePlugin: {namespace: "GuimiRulePlugin", minVersion: "0.0.1"}`
+> - 模板 → `requirePlugin: {namespace: "GuimiRulePlugin", minVersion: "0.1.1"}`
 
 ### 快速上手
 
