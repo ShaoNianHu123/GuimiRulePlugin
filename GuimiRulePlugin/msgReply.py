@@ -214,6 +214,7 @@ def unity_reply(plugin_event, Proc):
     # ---- 获取上下文信息 ----
     nick = plugin_event.data.sender.get('name', str(tmp_userID))
     platform = plugin_event.platform['platform']
+    bot_hash = plugin_event.bot_info.hash
 
     # OlivaDiceCore 上下文
     try:
@@ -263,10 +264,10 @@ def unity_reply(plugin_event, Proc):
     if cmd_gm['is_gm'] and cmd_gm['target'] is not None and cmd_gm['target'].isdigit():
         num = int(cmd_gm['target'])
         if num < 1:
-            replyMsg(plugin_event, '参数错误')
+            replyMsg(plugin_event, GuimiRulePlugin.msgCustom.render('strGMErrParam', bot_hash=bot_hash))
             return
         if num > GuimiRulePlugin.config.max_generate_count:
-            replyMsg(plugin_event, '"你应该去向伟大的宿命之环祈祷，这要观察的【命运】也太多了，我没这么大能耐。"')
+            replyMsg(plugin_event, GuimiRulePlugin.msgCustom.render('strGMErrTooMany', bot_hash=bot_hash))
             return
         cmd_attr = {'is_guimi': True, 'sub_cmd': 'attr', 'count': num, 'error': None}
         cmd_gm = {'is_gm': False, 'target': None, 'error': None}
@@ -281,6 +282,7 @@ def unity_reply(plugin_event, Proc):
             nick=nick,
             count=cmd_attr['count'],
             is_v4=is_v4,
+            bot_hash=bot_hash,
         )
         replyMsg(plugin_event, reply_text)
         return
@@ -300,7 +302,7 @@ def unity_reply(plugin_event, Proc):
         # 刷新属性
         if cmd_gm['target'] and cmd_gm['target'].strip() in ('刷新', '更新'):
             reply_text = GuimiRulePlugin.function.refresh_derived_stats(
-                pcHash=pcHash, hagID=hagID, nick=nick
+                pcHash=pcHash, hagID=hagID, nick=nick, bot_hash=bot_hash
             )
             replyMsg(plugin_event, reply_text)
             return
@@ -308,7 +310,7 @@ def unity_reply(plugin_event, Proc):
         if pcHash is None:
             replyMsg(
                 plugin_event,
-                '尚未找到你的角色卡。请先用 .st temp gm 绑定GM模板，再创建角色。'
+                GuimiRulePlugin.msgCustom.render('strGMErrNoCard', bot_hash=bot_hash)
             )
             return
         try:
@@ -318,6 +320,7 @@ def unity_reply(plugin_event, Proc):
                 target=cmd_gm['target'],
                 nick=nick,
                 roll_mode=cmd_gm.get('roll_mode'),
+                bot_hash=bot_hash,
             )
             replyMsg(plugin_event, reply_text)
         except Exception as e:
@@ -325,7 +328,7 @@ def unity_reply(plugin_event, Proc):
                 Proc, f'.gm 指令异常: {type(e).__name__}: {e}'
             )
             GuimiRulePlugin.utils.error_log(Proc, traceback.format_exc())
-            replyMsg(plugin_event, f'检定失败: {e}')
+            replyMsg(plugin_event, GuimiRulePlugin.msgCustom.render('strGMErrCheckFail', bot_hash=bot_hash, error=e))
         return
 
     # ---- 处理 .gmsc 理智检定 ----
@@ -336,7 +339,7 @@ def unity_reply(plugin_event, Proc):
         if pcHash is None:
             replyMsg(
                 plugin_event,
-                '尚未找到你的角色卡。请先用 .st temp gm 绑定GM模板，再创建角色。'
+                GuimiRulePlugin.msgCustom.render('strGMErrNoCard', bot_hash=bot_hash)
             )
             return
         try:
@@ -346,6 +349,7 @@ def unity_reply(plugin_event, Proc):
                 nick=nick,
                 loss_on_success=cmd_sc['loss_on_success'],
                 loss_on_fail=cmd_sc['loss_on_fail'],
+                bot_hash=bot_hash,
             )
             replyMsg(plugin_event, reply_text)
         except Exception as e:
@@ -353,5 +357,5 @@ def unity_reply(plugin_event, Proc):
                 Proc, f'.sc 指令异常: {type(e).__name__}: {e}'
             )
             GuimiRulePlugin.utils.error_log(Proc, traceback.format_exc())
-            replyMsg(plugin_event, f'理智检定失败: {e}')
+            replyMsg(plugin_event, GuimiRulePlugin.msgCustom.render('strGMErrSCFail', bot_hash=bot_hash, error=e))
         return

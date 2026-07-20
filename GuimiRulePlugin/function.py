@@ -6,7 +6,7 @@
 1. 属性随机生成（2d3，范围 2-6）
 2. D20 技能/属性检定（rd20 + 属性 + 技能加值）
 3. 理智检定（SC：rd20 ≤ 理智 = 成功）
-4. 格式化输出回复文本
+4. 格式化输出回复文本（全部通过 msgCustom 模板渲染）
 """
 
 import random
@@ -57,7 +57,8 @@ def generate_attrs(is_v4: bool = False) -> dict:
     return stats
 
 
-def format_attrs(stats: dict, is_v4: bool = False) -> str:
+def format_attrs(stats: dict, is_v4: bool = False,
+                 bot_hash=None) -> str:
     """
     将属性数据格式化为可读的文本块。
 
@@ -88,17 +89,18 @@ def format_attrs(stats: dict, is_v4: bool = False) -> str:
     result = '\n'.join(lines)
 
     if is_v4:
-        result += '\n\n（4.0属性为测试内容，非最终版本）'
+        result += '\n\n' + msgCustom.render('strGMAttrV4Note', bot_hash=bot_hash)
 
     return result
 
 
-def build_attr_reply(nick: str, count: int, is_v4: bool = False) -> str:
-    """构建完整的属性生成回复消息。"""
-    title = f'<{nick}>命运的馈赠在暗处已标注好了价码：'
+def build_attr_reply(nick: str, count: int, is_v4: bool = False,
+                     bot_hash=None) -> str:
+    """构建完整的属性生成回复消息（模板渲染）。"""
+    title = msgCustom.render('strGMAttrTitle', bot_hash=bot_hash, nick=nick)
 
     for _ in range(count):
-        attr_text = format_attrs(generate_attrs(is_v4), is_v4)
+        attr_text = format_attrs(generate_attrs(is_v4), is_v4, bot_hash=bot_hash)
         title += '\n\n' + attr_text
 
     return title
@@ -212,7 +214,7 @@ def _parse_manual_modifier(raw_target: str) -> tuple:
     """
     override_attr = None
     roll_mode = None
-    
+
     # 提取 adv/dis/优势/劣势 后缀
     adv_match = re.search(r'\s+(adv|优势|dis|劣势)\s*$', raw_target, re.IGNORECASE)
     if adv_match:
@@ -228,7 +230,6 @@ def _parse_manual_modifier(raw_target: str) -> tuple:
     match = re.search(r'((?:[+\-]\d+)+)$', raw_target)
     if match:
         mod_str = match.group(1)
-        # 逐个提取 +N/-N 并求和
         total_mod = sum(int(x) for x in re.findall(r'[+\-]\d+', mod_str))
         clean = raw_target[:match.start()].strip()
         if clean:
@@ -249,9 +250,10 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
                       absolute_attr: int = None,
                       absolute_skill: int = None,
                       override_attr: str = None,
-                      roll_mode: str = None) -> str:
+                      roll_mode: str = None,
+                      bot_hash=None) -> str:
     """
-    执行一次 D20 技能/属性检定。
+    执行一次 D20 技能/属性检定（全部通过模板渲染）。
 
     参数:
         pcHash: 用户哈希
@@ -264,18 +266,21 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
         absolute_skill: 绝对指定的技能加值
         override_attr: 改判属性名
         roll_mode: None=普通, 'adv'=奖励投(取高), 'dis'=惩罚投(取低)
+        bot_hash: 机器人哈希，用于读取用户自定义模板
     """
     # 奖励投/惩罚投：掷两次取高/低
     if roll_mode == 'adv':
         d20_1 = random.randint(1, 20)
         d20_2 = random.randint(1, 20)
         d20 = max(d20_1, d20_2)
-        roll_tag = f'【奖励投】{d20_1}/{d20_2}→取高→{d20}'
+        roll_tag = msgCustom.render('strGMD20TagAdv', bot_hash=bot_hash,
+                                    d1=d20_1, d2=d20_2, d20=d20)
     elif roll_mode == 'dis':
         d20_1 = random.randint(1, 20)
         d20_2 = random.randint(1, 20)
         d20 = min(d20_1, d20_2)
-        roll_tag = f'【惩罚投】{d20_1}/{d20_2}→取低→{d20}'
+        roll_tag = msgCustom.render('strGMD20TagDis', bot_hash=bot_hash,
+                                    d1=d20_1, d2=d20_2, d20=d20)
     else:
         d20 = random.randint(1, 20)
         roll_tag = None
@@ -303,14 +308,17 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
     has_manual = (absolute_attr is not None or absolute_skill is not None
                   or extra_attr is not None or extra_skill is not None)
 
-    lines = []
+    # 组装 tag 字符串
     tags = []
     if has_manual:
-        tags.append('【手动】')
+        tags.append(msgCustom.render('strGMD20TagManual', bot_hash=bot_hash))
     if roll_tag:
         tags.append(roll_tag)
     tag_str = ' '.join(tags)
-    lines.append(f'<{nick}>对【{target}】进行检定：{tag_str}')
+
+    # 标题行（先渲染，因为后面的 lines 需要以此为第一行）
+    lines = [msgCustom.render('strGMD20CheckTitle', bot_hash=bot_hash,
+                              nick=nick, target=target, tag=tag_str)]
 
     bonus = attr_val
     skill_info = ''
@@ -331,26 +339,28 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
                 skill_info = f' + 技能{target}({level_name}:{skill_bonus:+d})'
 
         bonus = attr_val + skill_bonus
-        lines.append(f'rd20({d20}) + {attr_display}{skill_info}')
+        lines.append(msgCustom.render('strGMD20CheckLine', bot_hash=bot_hash,
+                                      d20=d20, attr_display=attr_display,
+                                      skill_info=skill_info))
     else:
-        lines.append(f'rd20({d20}) + {attr_display}')
+        lines.append(msgCustom.render('strGMD20CheckLine', bot_hash=bot_hash,
+                                      d20=d20, attr_display=attr_display,
+                                      skill_info=''))
 
     total = d20 + bonus
 
     is_crit_success = (d20 == 20)
     is_crit_fail = (d20 == 1)
 
-    lines.append(f'= {total}')
+    # 结果行（始终显示，大成功/大失败在之后追加）
+    lines.append(msgCustom.render('strGMD20Result', bot_hash=bot_hash, total=total))
 
     if is_crit_success:
-        lines.append('『大成功！』命运的眷顾降临于你。')
+        lines.append(msgCustom.render('strGMD20CritSuccess', bot_hash=bot_hash,
+                                      total=total))
     elif is_crit_fail:
-        lines.append('『大失败！』命运对你露出了恶意的微笑。')
-    else:
-        lines.append(f'检定结果: {total}')
-
-    skill_summary = f'+技能({skill_bonus})' if is_skill else ''
-    lines.append(f'（对抗时以此值比较：{d20}+{attr_val}{skill_summary}={total}）')
+        lines.append(msgCustom.render('strGMD20CritFail', bot_hash=bot_hash,
+                                      total=total))
 
     return '\n'.join(lines)
 
@@ -385,9 +395,10 @@ def _roll_dice(expr: str) -> int:
 
 def perform_san_check(pcHash, hagID, nick: str,
                       loss_on_success: str = None,
-                      loss_on_fail: str = None) -> str:
+                      loss_on_fail: str = None,
+                      bot_hash=None) -> str:
     """
-    执行一次理智检定（SC）。
+    执行一次理智检定（SC）（全部通过模板渲染）。
 
     规则书：rd20 ≤ 当前理智 = 成功，rd20 > 理智 = 失败。
     理智损失格式：「成功损失/失败损失」，如未指定则默认 1/1d2。
@@ -406,54 +417,51 @@ def perform_san_check(pcHash, hagID, nick: str,
         loss_on_fail = '1d2'
 
     lines = []
-    lines.append(f'<{nick}>进行理智检定：')
-
-    if '最大' in str(current_san) or True:
-        lines.append(f'rd20({d20}) vs 理智({current_san})')
+    lines.append(msgCustom.render('strGMSCSTitle', bot_hash=bot_hash, nick=nick))
+    lines.append(msgCustom.render('strGMSCCheckLine', bot_hash=bot_hash,
+                                  d20=d20, san=current_san))
 
     if success:
-        lines.append(f'{d20} ≤ {current_san}，【理智检定成功】')
+        lines.append(msgCustom.render('strGMSCSSuccess', bot_hash=bot_hash,
+                                      d20=d20, san=current_san))
         loss = _roll_dice(loss_on_success)
         loss_expr_display = loss_on_success
-        lines.append(f'损失理智: {loss_expr_display} = {loss}')
-        result_type = '成功'
-        result_loss = loss
-        result_loss_expr = loss_on_success
     else:
-        lines.append(f'{d20} > {current_san}，【理智检定失败】')
+        lines.append(msgCustom.render('strGMSCSFail', bot_hash=bot_hash,
+                                      d20=d20, san=current_san))
         loss = _roll_dice(loss_on_fail)
         loss_expr_display = loss_on_fail
-        lines.append(f'损失理智: {loss_expr_display} = {loss}')
-        result_type = '失败'
-        result_loss = loss
-        result_loss_expr = loss_on_fail
+
+    lines.append(msgCustom.render('strGMSCSLossLine', bot_hash=bot_hash,
+                                  expr=loss_expr_display, loss=loss))
 
     # 提示剩余理智
-    new_san = max(0, current_san - result_loss)
-    lines.append(f'理智变化: {current_san} → {new_san}')
+    new_san = max(0, current_san - loss)
+    lines.append(msgCustom.render('strGMSCSChangeLine', bot_hash=bot_hash,
+                                  old=current_san, new=new_san))
 
-    # 疯狂阈值警告
+    # 疯狂阈值警告（独立 if，非互斥——可能同时触发多个阈值）
+    if new_san <= 0 and current_san > 0:
+        lines.append(msgCustom.render('strGMSCSLost', bot_hash=bot_hash))
+    if new_san <= 2 and current_san > 2:
+        lines.append(msgCustom.render('strGMSCSTrueMad', bot_hash=bot_hash))
     if new_san <= 8 and current_san > 8:
-        lines.append('⚠ 你已陷入【半疯】状态，获得随机疯狂倾向。')
-    elif new_san <= 2 and current_san > 2:
-        lines.append('⚠⚠ 你已陷入【真疯】状态，难以沟通。')
-    elif new_san <= 0 and current_san > 0:
-        lines.append('☠ 理智归零，你已【失控】！')
+        lines.append(msgCustom.render('strGMSCSHalfMad', bot_hash=bot_hash))
 
     return '\n'.join(lines)
 
 
 # ===================== 综合入口 =====================
 
-def handle_stat_command(nick: str, count: int, is_v4: bool = False) -> str:
+def handle_stat_command(nick: str, count: int, is_v4: bool = False,
+                        bot_hash=None) -> str:
     """处理 .诡秘 属性生成命令。"""
-    return build_attr_reply(nick, count, is_v4)
+    return build_attr_reply(nick, count, is_v4, bot_hash=bot_hash)
 
 
 def handle_gm_command(pcHash, hagID, target: str, nick: str,
-                      roll_mode: str = None) -> str:
+                      roll_mode: str = None, bot_hash=None) -> str:
     """处理 .gm 检定命令。支持手动加值、改判属性、奖励投/惩罚投。"""
-    # help 指令（双保险）
     if target.strip().lower() == 'help':
         return msgCustom.dictHelpDocTemp.get('诡秘规则帮助', '暂无帮助信息')
     # 解析手动加值后缀
@@ -469,7 +477,6 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str,
         mod_mode = None
         override_attr = None
         parsed_roll_mode = None
-        
 
     # 检查目标是否在已知的技能/属性列表中
     found = None
@@ -495,46 +502,50 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str,
     final_target = found if found is not None else clean_target
 
     # 手动加值判定
-    # 不在已知列表中的名称默认视为技能（属性仅8种，误判率低）
     is_skill = final_target in config.SKILL_ATTR_MAP or final_target not in [
         a['name'] for a in config.attrs_v3
     ]
     if manual_mod is not None:
         if mod_mode == 'absolute':
-            # 纯数字格式 → 绝对指定（数字表示技能等级，非加值）
             if is_skill:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          absolute_skill=manual_mod,
                                          override_attr=override_attr,
-                                         roll_mode=parsed_roll_mode)
+                                         roll_mode=parsed_roll_mode,
+                                         bot_hash=bot_hash)
             else:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          absolute_attr=manual_mod,
                                          override_attr=override_attr,
-                                         roll_mode=parsed_roll_mode)
+                                         roll_mode=parsed_roll_mode,
+                                         bot_hash=bot_hash)
         else:
-            # +/-格式 → 叠加调整
             if is_skill:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          extra_skill=manual_mod,
                                          override_attr=override_attr,
-                                         roll_mode=parsed_roll_mode)
+                                         roll_mode=parsed_roll_mode,
+                                         bot_hash=bot_hash)
             else:
                 return perform_d20_check(pcHash, hagID, final_target, nick,
                                          extra_attr=manual_mod,
                                          override_attr=override_attr,
-                                         roll_mode=parsed_roll_mode)
+                                         roll_mode=parsed_roll_mode,
+                                         bot_hash=bot_hash)
     else:
         return perform_d20_check(pcHash, hagID, final_target, nick,
                                  override_attr=override_attr,
-                                 roll_mode=parsed_roll_mode)
+                                 roll_mode=parsed_roll_mode,
+                                 bot_hash=bot_hash)
 
 
 def handle_sc_command(pcHash, hagID, nick: str,
                       loss_on_success: str = None,
-                      loss_on_fail: str = None) -> str:
-    """处理 .sc 理智检定命令。"""
-    return perform_san_check(pcHash, hagID, nick, loss_on_success, loss_on_fail)
+                      loss_on_fail: str = None,
+                      bot_hash=None) -> str:
+    """处理 .gmsc 理智检定命令。"""
+    return perform_san_check(pcHash, hagID, nick, loss_on_success, loss_on_fail,
+                             bot_hash=bot_hash)
 
 
 # ===================== 序列/消化 & 属性计算 =====================
@@ -551,13 +562,10 @@ def _get_special_value(pcHash, hagID, key: str) -> int:
     return None
 
 
-# 保留：_get_special_value 供后续使用
-
-
-def refresh_derived_stats(pcHash, hagID, nick: str) -> str:
+def refresh_derived_stats(pcHash, hagID, nick: str, bot_hash=None) -> str:
     """
     根据卡片中的序列等级、消化度、属性，自动计算并更新生命/灵性。
-    返回格式化的结果说明。
+    返回格式化的结果说明（模板渲染）。
     """
     odc = _get_odc()
     seq_raw = _get_special_value(pcHash, hagID, '序列')
@@ -593,13 +601,19 @@ def refresh_derived_stats(pcHash, hagID, nick: str) -> str:
             hagId=hagID
         )
     except Exception as e:
-        return f'更新失败：{e}'
+        return msgCustom.render('strGMErrRefreshFail', bot_hash=bot_hash, error=e)
 
-    seq_info = f'序列{seq_raw}（{seq_mult}倍）' if seq_raw is not None else '无序列'
-    return (
-        f'<{nick}> {seq_info}  消化{digest}（+{digest_bonus}）\n'
-        f'血量上限→{hp_new}  灵性→{mp_new}  理智→{san_new}  已更新'
-    )
+    # 序列信息片段
+    if seq_raw is not None:
+        seq_info = msgCustom.render('strGMRefreshSeqInfo', bot_hash=bot_hash,
+                                    seq=seq_raw, mult=seq_mult)
+    else:
+        seq_info = msgCustom.render('strGMRefreshNoSeq', bot_hash=bot_hash)
+
+    return msgCustom.render('strGMRefreshSuccess', bot_hash=bot_hash,
+                            nick=nick, seq_info=seq_info,
+                            digest=digest, digest_bonus=digest_bonus,
+                            hp=hp_new, mp=mp_new, san=san_new)
 
 
 def ri_check(plugin_event, pcHash, hagID, nick: str) -> str:
@@ -609,16 +623,19 @@ def ri_check(plugin_event, pcHash, hagID, nick: str) -> str:
     dex = _get_user_stat(pcHash, hagID, '敏捷')
     total = d20 + dex
 
+    # 从 plugin_event 提取 bot_hash
+    bot_hash = plugin_event.bot_info.hash if hasattr(plugin_event, 'bot_info') else None
+
     # 注册到 ODC 的先攻系统
     try:
         platform = plugin_event.platform['platform']
-        bot_hash = plugin_event.bot_info.hash
+        bot_hash_val = plugin_event.bot_info.hash
         user_id = plugin_event.data.user_id
         odc.msgReplyModel.setUserConfigForInit(
             tmp_hagID=(str(plugin_event.data.host_id) + '|' + str(plugin_event.data.group_id))
                 if plugin_event.data.host_id else str(plugin_event.data.group_id),
             tmp_pc_platform=platform,
-            bot_hash=bot_hash,
+            bot_hash=bot_hash_val,
             config_key='groupInitList',
             init_name=nick,
             init_value=total,
@@ -627,7 +644,7 @@ def ri_check(plugin_event, pcHash, hagID, nick: str) -> str:
             tmp_hagID=(str(plugin_event.data.host_id) + '|' + str(plugin_event.data.group_id))
                 if plugin_event.data.host_id else str(plugin_event.data.group_id),
             tmp_pc_platform=platform,
-            bot_hash=bot_hash,
+            bot_hash=bot_hash_val,
             config_key='groupInitParaList',
             init_name=nick,
             init_value=f'rd20+敏捷({dex})',
@@ -636,7 +653,7 @@ def ri_check(plugin_event, pcHash, hagID, nick: str) -> str:
             tmp_hagID=(str(plugin_event.data.host_id) + '|' + str(plugin_event.data.group_id))
                 if plugin_event.data.host_id else str(plugin_event.data.group_id),
             tmp_pc_platform=platform,
-            bot_hash=bot_hash,
+            bot_hash=bot_hash_val,
             config_key='groupInitUserList',
             init_name=nick,
             init_value={'userId': user_id, 'platform': platform},
@@ -644,4 +661,5 @@ def ri_check(plugin_event, pcHash, hagID, nick: str) -> str:
     except Exception:
         pass
 
-    return f'<{nick}>先攻检定：rd20({d20}) + 敏捷({dex}) = {total}  已加入先攻列表'
+    return msgCustom.render('strGMRiCheck', bot_hash=bot_hash,
+                            nick=nick, d20=d20, dex=dex, total=total)

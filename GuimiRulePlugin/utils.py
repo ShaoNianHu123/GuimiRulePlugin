@@ -10,6 +10,7 @@ import re
 import traceback
 
 from . import config
+from . import msgCustom
 
 # 全局缓存运行期 Proc
 _runtime_proc = None
@@ -130,13 +131,10 @@ def parse_command(message_text: str) -> dict:
     if tail.isdigit():
         num = int(tail)
         if num < 1:
-            result['error'] = '参数错误'
+            result['error'] = msgCustom.get_template('strGMErrParam')
             return result
         if num > config.max_generate_count:
-            result['error'] = (
-                '"你应该去向伟大的宿命之环祈祷，'
-                '这要观察的【命运】也太多了，我没这么大能耐。"'
-            )
+            result['error'] = msgCustom.get_template('strGMErrTooMany')
             return result
         result['sub_cmd'] = 'attr'
         result['count'] = num
@@ -164,18 +162,15 @@ def parse_command(message_text: str) -> dict:
         if count_part.isdigit():
             num = int(count_part)
             if num < 1:
-                result['error'] = '参数错误'
+                result['error'] = msgCustom.get_template('strGMErrParam')
                 return result
             if num > config.max_generate_count:
-                result['error'] = (
-                    '"你应该去向伟大的宿命之环祈祷，'
-                    '这要观察的【命运】也太多了，我没这么大能耐。"'
-                )
+                result['error'] = msgCustom.get_template('strGMErrTooMany')
                 return result
             result['count'] = num
         elif count_part:
             # 非纯数字 → 当参数错误，交给互通路由转 gm
-            result['error'] = '参数错误'
+            result['error'] = msgCustom.get_template('strGMErrParam')
             return result
         return result
 
@@ -183,17 +178,14 @@ def parse_command(message_text: str) -> dict:
     if digit_match:
         num = int(digit_match.group())
         if num < 1:
-            result['error'] = '参数错误'
+            result['error'] = msgCustom.get_template('strGMErrParam')
             return result
         if num > config.max_generate_count:
-            result['error'] = (
-                '"你应该去向伟大的宿命之环祈祷，'
-                '这要观察的【命运】也太多了，我没这么大能耐。"'
-            )
+            result['error'] = msgCustom.get_template('strGMErrTooMany')
             return result
         result['count'] = num
     elif count_part:
-        result['error'] = '参数错误'
+        result['error'] = msgCustom.get_template('strGMErrParam')
         return result
     else:
         result['count'] = 1
@@ -240,7 +232,7 @@ def parse_gm_command(message_text: str) -> dict:
     # 提取 gm 后面的部分
     tail = rest[2:].strip()
     if not tail:
-        result['error'] = '请指定技能或属性名称，如 .gm力量 或 .gm格斗'
+        result['error'] = msgCustom.get_template('strGMErrNoTarget')
         return result
 
     # 中文前置：.gm 优势 力量 / .gm 劣势 格斗
@@ -268,7 +260,7 @@ def parse_gmb_command(message_text: str) -> dict:
             tail = rest[3:].strip()
             if not tail:
                 result['is_gm'] = True
-                result['error'] = '请指定技能或属性名称，如 .gmb力量'
+                result['error'] = msgCustom.get_template('strGMErrNoTargetAdv')
                 return result
             result['is_gm'] = True
             result['target'] = tail
@@ -288,7 +280,7 @@ def parse_gmp_command(message_text: str) -> dict:
             tail = rest[3:].strip()
             if not tail:
                 result['is_gm'] = True
-                result['error'] = '请指定技能或属性名称，如 .gmp力量'
+                result['error'] = msgCustom.get_template('strGMErrNoTargetAdv')
                 return result
             result['is_gm'] = True
             result['target'] = tail
