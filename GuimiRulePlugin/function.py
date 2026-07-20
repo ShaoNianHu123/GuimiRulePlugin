@@ -581,6 +581,10 @@ def refresh_derived_stats(pcHash, hagID, nick: str) -> str:
             hagId=hagID
         )
         odc.pcCard.setPcSkillAPI(
+            pcHash=pcHash, skillName='血量', skillValue=hp_new,
+            hagId=hagID
+        )
+        odc.pcCard.setPcSkillAPI(
             pcHash=pcHash, skillName='灵性', skillValue=mp_new,
             hagId=hagID
         )
