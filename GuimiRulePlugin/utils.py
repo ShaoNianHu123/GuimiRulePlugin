@@ -12,20 +12,8 @@ import traceback
 from . import config
 from . import msgCustom
 
-# 全局缓存运行期 Proc
+# 全局缓存运行期 Proc（目前仅 reply_message fallback 使用）
 _runtime_proc = None
-
-
-def set_runtime_proc(Proc) -> None:
-    """缓存运行期 Proc。"""
-    global _runtime_proc
-    if Proc is not None:
-        _runtime_proc = Proc
-
-
-def get_runtime_proc():
-    """获取缓存的 Proc。"""
-    return _runtime_proc
 
 
 def info_log(Proc, message: str) -> None:

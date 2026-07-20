@@ -6,9 +6,19 @@
 所有回复模板使用 {变量} 占位符，运行时替换为实际值。
 """
 
-import OlivOS
-import OlivaDiceCore
-import GuimiRulePlugin
+
+# OlivaDiceCore 延迟引用，避免导入时依赖缺失导致崩溃
+_ODC = None
+
+
+def _get_odc():
+    """延迟获取 OlivaDiceCore 模块引用。"""
+    global _ODC
+    if _ODC is None:
+        import OlivaDiceCore as odc
+        _ODC = odc
+    return _ODC
+
 
 dictStrCustomDict = {}
 
@@ -167,7 +177,7 @@ def get_template(key: str, bot_hash=None) -> str:
     """
     if bot_hash is not None:
         try:
-            import OlivaDiceCore as odc
+            odc = _get_odc()
             if hasattr(odc, 'msgCustom') and hasattr(odc.msgCustom, 'dictStrCustomDict'):
                 user_dict = odc.msgCustom.dictStrCustomDict.get(bot_hash, {})
                 if key in user_dict and user_dict[key]:

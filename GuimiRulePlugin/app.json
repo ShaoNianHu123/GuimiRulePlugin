@@ -3,8 +3,8 @@
     "author": "少年狐 | https://github.com/ShaoNianHu123/GuimiRulePlugin | QQ: 1690676242",
     "namespace": "GuimiRulePlugin",
     "message_mode": "olivos_string",
-    "info": "诡秘之主D20跑团规则插件 v0.1.1 —— 属性生成、技能/属性检定、理智检定、先攻、序列消化度系统 (AI编程)",
-    "version": "0.1.1",
+    "info": "诡秘之主D20跑团规则插件 v1.0.0 —— 正式版：自定义回复模板、属性生成、检定、先攻、序列消化",
+    "version": "1.0.0",
     "svn": 1,
     "requireTemplate": {
         "name": "gm",

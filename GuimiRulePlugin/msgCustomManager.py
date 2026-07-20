@@ -9,8 +9,6 @@ msgCustom.py 的自定义回复管理器。
 import OlivOS
 import OlivaDiceCore
 import GuimiRulePlugin
-import os
-import json
 
 has_NativeGUI = False
 try:

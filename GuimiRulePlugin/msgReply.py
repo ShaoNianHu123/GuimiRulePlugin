@@ -11,7 +11,6 @@
 import OlivOS
 import GuimiRulePlugin
 import OlivaDiceCore
-import copy
 import traceback
 
 
@@ -69,16 +68,13 @@ def unity_reply(plugin_event, Proc):
     tmp_id_str_sub = None
     if 'sub_self_id' in plugin_event.data.extend:
         if plugin_event.data.extend['sub_self_id'] is not None:
-            tmp_at_str_sub = OlivOS.messageAPI.PARA.at(
-                plugin_event.data.extend['sub_self_id']
-            ).OP()
             tmp_id_str_sub = str(plugin_event.data.extend['sub_self_id'])
 
     tmp_reast_str = plugin_event.data.message
     flag_force_reply = False
     flag_is_command = False
 
-    # 处理 OP 回复引用
+    # 处理 OP 回复引用（剥离引用部分，只保留纯文本）
     if isMatchWordStart(tmp_reast_str, '[OP:reply,id='):
         tmp_reast_str = skipToRight(tmp_reast_str, ']')
         tmp_reast_str = tmp_reast_str[1:]
@@ -114,9 +110,15 @@ def unity_reply(plugin_event, Proc):
             tmp_reast_str = tmp_reast_str_old
 
     # ---- 命令前缀检测 ----
+    try:
+        prefix_list = OlivaDiceCore.crossHook.dictHookList.get('prefix', [])
+    except Exception:
+        prefix_list = []
+    # 保存 AT 剥离后的消息用于命令解析（parse_* 需要原始前缀）
+    msg_for_parse = tmp_reast_str
     [tmp_reast_str, flag_is_command] = msgIsCommand(
         tmp_reast_str,
-        OlivaDiceCore.crossHook.dictHookList['prefix']
+        prefix_list
     )
 
     if not flag_is_command:
@@ -198,7 +200,7 @@ def unity_reply(plugin_event, Proc):
         return
 
     # ========== 指令处理 ==========
-    msg_text = plugin_event.data.message
+    msg_text = msg_for_parse  # AT剥离后、前缀保留的消息
 
     # ---- help 优先检测（在任何解析之前）----
     help_keywords = ['.gm help', '.gmhelp', '。gm help', '。gmhelp',

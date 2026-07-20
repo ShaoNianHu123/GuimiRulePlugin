@@ -15,6 +15,11 @@ import re
 from . import config
 from . import msgCustom
 
+# 合并 v3 + v4 全部属性名（用于属性/技能判断）
+_ALL_ATTR_NAMES = list(set(
+    [a['name'] for a in config.attrs_v3] + [a['name'] for a in config.attrs_v4]
+))
+
 # OlivaDiceCore 仅在实际调用时才引用，避免导入时依赖缺失导致崩溃
 _ODC = None
 
@@ -202,7 +207,7 @@ def _parse_manual_modifier(raw_target: str) -> tuple:
 
     例: '力量+5'       → ('力量', 5, 'adjust', None, None, None)
         '格斗-2'       → ('格斗', -2, 'adjust', None, None, None)
-        '格斗+2+3'     → ('格斗', 0, 'adjust', None, None, 3) + extra_attr=2
+        '格斗+2+3'     → ('格斗', 5, 'adjust', None, None, None)  # +2+3 合并求和
         '力量5'        → ('力量', 5, 'absolute', None, None, None)
         '驯兽/教育'    → ('驯兽', None, None, '教育', None, None)
         '格斗+3/灵感'  → ('格斗', 3, 'adjust', '灵感', None, None)
@@ -210,7 +215,7 @@ def _parse_manual_modifier(raw_target: str) -> tuple:
         '格斗 dis'     → ('格斗', None, None, None, 'dis', None)
 
     返回: (clean_name, value, mode, override_attr, roll_mode, extra_attr)
-          当尾部有 +N+M 格式时，value=第二个数(None→0), extra_attr=第一个数
+          extra_attr 保留字段，当前始终为 None（+N+M 格式合并求和到 value）
     """
     override_attr = None
     roll_mode = None
@@ -286,8 +291,7 @@ def perform_d20_check(pcHash, hagID, target: str, nick: str,
         roll_tag = None
 
     # 仅 8 种属性名走属性检定，其它（含用户自定义）一律技能
-    attr_names = [a['name'] for a in config.attrs_v3]
-    is_skill = target not in attr_names
+    is_skill = target not in _ALL_ATTR_NAMES
     linked_attr_name = override_attr if override_attr else config.SKILL_ATTR_MAP.get(target, '力量')
 
     # 读取卡片属性值
@@ -472,6 +476,7 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str,
         parsed_roll_mode = roll_mode
 
     if clean_target is None:
+        # 回退：理论上不应到达，但保留安全兜底
         clean_target = target
         manual_mod = None
         mod_mode = None
@@ -502,9 +507,7 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str,
     final_target = found if found is not None else clean_target
 
     # 手动加值判定
-    is_skill = final_target in config.SKILL_ATTR_MAP or final_target not in [
-        a['name'] for a in config.attrs_v3
-    ]
+    is_skill = final_target in config.SKILL_ATTR_MAP or final_target not in _ALL_ATTR_NAMES
     if manual_mod is not None:
         if mod_mode == 'absolute':
             if is_skill:
@@ -575,7 +578,7 @@ def refresh_derived_stats(pcHash, hagID, nick: str, bot_hash=None) -> str:
     int_val = _get_user_stat(pcHash, hagID, '灵感')
 
     # 序列加成：序列9→1倍, 序列8→2倍, ..., 序列0→10倍
-    seq_mult = 0 if seq_raw is None else (10 - seq_raw)
+    seq_mult = min(max(0 if seq_raw is None else (10 - seq_raw), 0), 10)
     digest_bonus = digest // 5
 
     hp_new = 10 + con + seq_mult * con + digest_bonus
@@ -623,43 +626,42 @@ def ri_check(plugin_event, pcHash, hagID, nick: str) -> str:
     dex = _get_user_stat(pcHash, hagID, '敏捷')
     total = d20 + dex
 
-    # 从 plugin_event 提取 bot_hash
+    # 从 plugin_event 提取 bot_hash（后续复用）
     bot_hash = plugin_event.bot_info.hash if hasattr(plugin_event, 'bot_info') else None
 
     # 注册到 ODC 的先攻系统
     try:
         platform = plugin_event.platform['platform']
-        bot_hash_val = plugin_event.bot_info.hash
         user_id = plugin_event.data.user_id
+        hag_id = (str(plugin_event.data.host_id) + '|' + str(plugin_event.data.group_id)) \
+            if plugin_event.data.host_id else str(plugin_event.data.group_id)
         odc.msgReplyModel.setUserConfigForInit(
-            tmp_hagID=(str(plugin_event.data.host_id) + '|' + str(plugin_event.data.group_id))
-                if plugin_event.data.host_id else str(plugin_event.data.group_id),
+            tmp_hagID=hag_id,
             tmp_pc_platform=platform,
-            bot_hash=bot_hash_val,
+            bot_hash=bot_hash,
             config_key='groupInitList',
             init_name=nick,
             init_value=total,
         )
         odc.msgReplyModel.setUserConfigForInit(
-            tmp_hagID=(str(plugin_event.data.host_id) + '|' + str(plugin_event.data.group_id))
-                if plugin_event.data.host_id else str(plugin_event.data.group_id),
+            tmp_hagID=hag_id,
             tmp_pc_platform=platform,
-            bot_hash=bot_hash_val,
+            bot_hash=bot_hash,
             config_key='groupInitParaList',
             init_name=nick,
             init_value=f'rd20+敏捷({dex})',
         )
         odc.msgReplyModel.setUserConfigForInit(
-            tmp_hagID=(str(plugin_event.data.host_id) + '|' + str(plugin_event.data.group_id))
-                if plugin_event.data.host_id else str(plugin_event.data.group_id),
+            tmp_hagID=hag_id,
             tmp_pc_platform=platform,
-            bot_hash=bot_hash_val,
+            bot_hash=bot_hash,
             config_key='groupInitUserList',
             init_name=nick,
             init_value={'userId': user_id, 'platform': platform},
         )
-    except Exception:
-        pass
+    except Exception as e:
+        from .utils import error_log
+        error_log(None, f'ri_check 先攻注册异常: {type(e).__name__}: {e}')
 
     return msgCustom.render('strGMRiCheck', bot_hash=bot_hash,
                             nick=nick, d20=d20, dex=dex, total=total)
