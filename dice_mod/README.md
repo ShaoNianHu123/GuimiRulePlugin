@@ -38,28 +38,13 @@
 
 ## 安装
 
-> ⚠️ **与 OlivOS 版完全独立**，两者可并存，互不影响。
-
-### 方式一：手动安装
-
-1. 将 `guimi_rule.json` 和 `guimi_rule/` 文件夹放入 Dice! 的 **`mod/`** 目录
-2. 启动 Dice! 或执行 `.system load`
+把 `guimi_rule.lua` 放入 Dice! 的 **`plugin/`** 目录，重启 Dice! 即可。
 
 ```
 [DiceData]
-  └── mod/
-       ├── guimi_rule.json
-       └── guimi_rule/
-            ├── reply/
-            │    └── guimi_main.lua
-            └── script/
-                 └── guimi_main.lua
+  └── plugin/
+       └── guimi_rule.lua   ← 就这一个文件
 ```
-
-### 方式二：WebUI 安装
-
-1. 将整个 `dice_mod/` 打包为 zip（确保 json 和文件夹在 zip 根层）
-2. WebUI → 模块管理 → 远程资源 → 手动安装
 
 ---
 

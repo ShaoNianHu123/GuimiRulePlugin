@@ -577,7 +577,7 @@ def refresh_derived_stats(pcHash, hagID, nick: str) -> str:
     # 写入卡片
     try:
         odc.pcCard.setPcSkillAPI(
-            pcHash=pcHash, skillName='生命', skillValue=hp_new,
+            pcHash=pcHash, skillName='血量上限', skillValue=hp_new,
             hagId=hagID
         )
         odc.pcCard.setPcSkillAPI(
@@ -594,7 +594,7 @@ def refresh_derived_stats(pcHash, hagID, nick: str) -> str:
     seq_info = f'序列{seq_raw}（{seq_mult}倍）' if seq_raw is not None else '无序列'
     return (
         f'<{nick}> {seq_info}  消化{digest}（+{digest_bonus}）\n'
-        f'生命→{hp_new}  灵性→{mp_new}  理智→{san_new}  已更新'
+        f'血量上限→{hp_new}  灵性→{mp_new}  理智→{san_new}  已更新'
     )
 
 

@@ -1,30 +1,17 @@
 --[[
-    诡秘之主 D20 规则插件 for Dice! —— 核心逻辑
-    原 OlivOS GuimiRulePlugin v0.1.0 的 Dice! Lua 移植版
+    诡秘之主 D20 规则插件 for Dice!
+    plugin 单文件版 —— 放入 Dice! 的 plugin/ 目录即可
 
     作者: 少年狐 (ShaoNianHu123)
     GitHub: https://github.com/ShaoNianHu123
     QQ: 1690676242
 
-    指令:
-      .诡秘 [数量]        属性生成 (2d3, 2~6)
-      .诡秘4.0 [数量]     4.0预览属性表
-      .gm <技能/属性>     D20 检定
-      .gmb <目标>         奖励投 (取高)
-      .gmp <目标>         惩罚投 (取低)
-      .gmsc [损失骰]      理智检定
-      .gmri               先攻检定
-      .gm 刷新/.gm 更新   衍生属性刷新
-
-    依赖 Dice! 原生角色卡系统：
-      用户需先用 .pc new / .pc tag 绑卡，再 .st 录入属性/技能
+    从 OlivOS GuimiRulePlugin v0.1.0 移植
 ]]
 
 -- ============================================================
 --  配置数据
 -- ============================================================
-
-local CMD_PREFIXES = {".", "。", "/", "／"}
 
 -- 最大生成套数
 local MAX_GEN = 10
@@ -60,7 +47,7 @@ for _, a in ipairs(ATTRS_V3) do
     V3_ATTR_NAMES[a.name] = true
 end
 
--- 技能 → 关联属性映射
+-- 技能 → 关联属性映射（50+ 技能）
 local SKILL_ATTR_MAP = {
     -- 力量相关
     ["攀爬"] = "力量", ["跳跃"] = "力量", ["格斗"] = "力量",
@@ -129,10 +116,7 @@ local SKILL_LEVELS = {
     {bonus = 10, name = "大师"},
 }
 
--- ============================================================
---  帮助文本
--- ============================================================
-
+-- 帮助文本
 local HELP_TEXT = [[【诡秘之主D20规则 - 帮助】
 .诡秘 [数量]         随机生成人物属性（2d3，2~6）
 .诡秘4.0 [数量]      使用4.0预览属性表生成
@@ -144,7 +128,6 @@ local HELP_TEXT = [[【诡秘之主D20规则 - 帮助】
 .gmsc [损失骰]        理智检定（rd20 vs 理智）
   .gmsc                 默认损失 1/1d2
   .gmsc 1d2/1d4         成功损失1d2，失败损失1d4
-  .gmsc 1/1d6           成功损失1，失败损失1d6
 .gm 刷新/.gm 更新    根据序列/消化自动计算更新生命灵性理智
 .gmri                先攻检定（rd20 + 敏捷）
 
@@ -158,16 +141,13 @@ local HELP_TEXT = [[【诡秘之主D20规则 - 帮助】
   .pc tag 克莱恩
   .st 力量 5
   .st 格斗 2
-  .st 序列 9
-  .st 消化 12
-  .gm 格斗               ← 开始检定！
 ]]
 
 -- ============================================================
 --  工具函数
 -- ============================================================
 
--- 模拟 2d3 掷骰
+-- 模拟 2d3
 local function roll_stat()
     return ranint(1, 3) + ranint(1, 3)
 end
@@ -181,16 +161,6 @@ end
 -- 判断 s 是否以 prefix 开头
 local function starts_with(s, prefix)
     return string.sub(s, 1, #prefix) == prefix
-end
-
--- 拆分命令前缀（. / 。 / / 等）
-local function strip_cmd_prefix(text)
-    for _, p in ipairs(CMD_PREFIXES) do
-        if starts_with(text, p) then
-            return p, string.sub(text, #p + 1)
-        end
-    end
-    return nil, text
 end
 
 -- 从 Dice! 角色卡读取属性值（尝试中英文别名）
@@ -221,7 +191,6 @@ local function get_card_san(gid, userID)
         local val = getPlayerCardAttr(userID, gid, san_name, 0)
         if val and val ~= 0 then return val end
     end
-    -- 回退：理智 = 10 + 意志
     local will = get_card_attr(gid, userID, "意志")
     if will > 0 then return 10 + will end
     return 10
@@ -235,247 +204,9 @@ local function parse_skill_level(skill_value)
     return lv.name, lv.bonus
 end
 
--- ============================================================
---  命令解析
--- ============================================================
-
--- 解析 .诡秘 命令尾部
-local function parse_guimi(tail)
-    tail = trim(tail)
-    local result = {is_guimi = true, sub_cmd = "attr", count = 1, error = nil, tail_for_gm = nil}
-
-    if tail == "" or tail == "3.0" or tail == "3.5" then
-        result.sub_cmd = "attr"
-        result.count = 1
-        return result
-    end
-
-    if tail == "4.0" then
-        result.sub_cmd = "attr_v4"
-        result.count = 1
-        return result
-    end
-
-    -- 纯数字后缀
-    local num = tonumber(tail)
-    if num then
-        if num < 1 then
-            result.error = "参数错误"
-            return result
-        end
-        if num > MAX_GEN then
-            result.error = '"你应该去向伟大的宿命之环祈祷，这要观察的【命运】也太多了，我没这么大能耐。"'
-            return result
-        end
-        result.count = num
-        return result
-    end
-
-    -- 版本号前缀
-    if starts_with(tail, "4.0") then
-        result.sub_cmd = "attr_v4"
-        local after = trim(string.sub(tail, 4))
-        local anum = tonumber(after)
-        if after == "" then
-            result.count = 1
-        elseif anum then
-            if anum < 1 then result.error = "参数错误"
-            elseif anum > MAX_GEN then result.error = '"你应该去向伟大的宿命之环祈祷，这要观察的【命运】也太多了，我没这么大能耐。"'
-            else result.count = anum end
-        else
-            result.tail_for_gm = tail
-        end
-        return result
-    end
-
-    if starts_with(tail, "3.0") or starts_with(tail, "3.5") then
-        result.sub_cmd = "attr"
-        local after = trim(string.sub(tail, 4))
-        local anum = tonumber(after)
-        if after == "" then
-            result.count = 1
-        elseif anum then
-            if anum < 1 then result.error = "参数错误"
-            elseif anum > MAX_GEN then result.error = '"你应该去向伟大的宿命之环祈祷，这要观察的【命运】也太多了，我没这么大能耐。"'
-            else result.count = anum end
-        else
-            result.tail_for_gm = tail
-        end
-        return result
-    end
-
-    -- 非数字非版本号 → 交给 gm 路由
-    result.tail_for_gm = tail
-    return result
-end
-
--- 解析 .gm 家族命令
-local function parse_gm(rest)
-    local cmd_type = "gm"
-    local after = rest
-
-    if starts_with(rest, "gmsc") or starts_with(rest, "GMSC") then
-        cmd_type = "gmsc"
-        after = trim(string.sub(rest, 5))
-    elseif starts_with(rest, "gmri") or starts_with(rest, "GMRI") then
-        cmd_type = "gmri"
-        after = trim(string.sub(rest, 5))
-    elseif starts_with(rest, "gmb") or starts_with(rest, "GMB") then
-        cmd_type = "gmb"
-        after = trim(string.sub(rest, 4))
-    elseif starts_with(rest, "gmp") or starts_with(rest, "GMP") then
-        cmd_type = "gmp"
-        after = trim(string.sub(rest, 4))
-    elseif starts_with(rest, "gm") or starts_with(rest, "GM") then
-        cmd_type = "gm"
-        after = trim(string.sub(rest, 3))
-    end
-
-    local result = {cmd_type = cmd_type, target = nil, error = nil, roll_mode = nil,
-                    sc_success = nil, sc_fail = nil}
-
-    if cmd_type == "gmri" then
-        return result
-    end
-
-    if cmd_type == "gmb" then
-        result.roll_mode = "adv"
-        if after == "" then
-            result.error = "请指定技能或属性名称，如 .gmb力量"
-            return result
-        end
-        result.target = after
-        return result
-    end
-
-    if cmd_type == "gmp" then
-        result.roll_mode = "dis"
-        if after == "" then
-            result.error = "请指定技能或属性名称，如 .gmp力量"
-            return result
-        end
-        result.target = after
-        return result
-    end
-
-    if cmd_type == "gmsc" then
-        if after ~= "" then
-            local parts = {}
-            for part in string.gmatch(after, "[^/%s]+") do
-                table.insert(parts, part)
-            end
-            if #parts >= 1 then result.sc_success = parts[1] end
-            if #parts >= 2 then result.sc_fail = parts[2] end
-        end
-        return result
-    end
-
-    -- cmd_type == "gm"
-    if after == "" then
-        result.error = "请指定技能或属性名称，如 .gm力量 或 .gm格斗"
-        return result
-    end
-
-    if string.lower(after) == "help" then
-        result.cmd_type = "help"
-        return result
-    end
-
-    if after == "刷新" or after == "更新" then
-        result.cmd_type = "refresh"
-        return result
-    end
-
-    -- 中文前置: 优势/劣势
-    if starts_with(after, "优势") then
-        local tail = trim(string.sub(after, 7))
-        if tail ~= "" then
-            result.roll_mode = "adv"
-            result.target = tail
-            return result
-        end
-    end
-    if starts_with(after, "劣势") then
-        local tail = trim(string.sub(after, 7))
-        if tail ~= "" then
-            result.roll_mode = "dis"
-            result.target = tail
-            return result
-        end
-    end
-
-    result.target = after
-    return result
-end
-
--- 解析 .gm 目标中的手动加值/改判/优劣势后缀
-local function parse_manual_modifier(raw_target)
-    if not raw_target or raw_target == "" then
-        return raw_target, nil, nil, nil, nil
-    end
-
-    local override_attr = nil
-    local roll_mode = nil
-    local target = raw_target
-
-    -- 提取尾部 adv/dis/优势/劣势
-    local function extract_roll_mode(t, keyword, mode)
-        local len = #keyword
-        if #t >= len + 1 and string.sub(t, -len) == keyword
-           and string.sub(t, -(len + 1), -(len + 1)) == " " then
-            return trim(string.sub(t, 1, -(len + 2))), mode
-        end
-        return nil, nil
-    end
-
-    local new_target, rm
-    new_target, rm = extract_roll_mode(target, "adv", "adv")
-    if new_target then target = new_target; roll_mode = rm end
-    if not roll_mode then
-        new_target, rm = extract_roll_mode(target, "dis", "dis")
-        if new_target then target = new_target; roll_mode = rm end
-    end
-    if not roll_mode then
-        new_target, rm = extract_roll_mode(target, "优势", "adv")
-        if new_target then target = new_target; roll_mode = rm end
-    end
-    if not roll_mode then
-        new_target, rm = extract_roll_mode(target, "劣势", "dis")
-        if new_target then target = new_target; roll_mode = rm end
-    end
-
-    -- 提取 /属性 后缀（改判）
-    local slash_pos = string.find(target, "/")
-    if slash_pos then
-        override_attr = trim(string.sub(target, slash_pos + 1))
-        target = trim(string.sub(target, 1, slash_pos - 1))
-    end
-
-    -- 匹配 +/- 数字序列
-    local sign_start, sign_end = string.find(target, "[%+%-]%d+")
-    if sign_start then
-        local mod_str = string.sub(target, sign_start)
-        local total_mod = 0
-        for num_str in string.gmatch(mod_str, "[%+%-]%d+") do
-            total_mod = total_mod + tonumber(num_str)
-        end
-        local clean = trim(string.sub(target, 1, sign_start - 1))
-        if clean ~= "" then
-            return clean, total_mod, "adjust", override_attr, roll_mode
-        end
-    end
-
-    -- 匹配纯数字后缀
-    local digit_start, digit_end = string.find(target, "%d+$")
-    if digit_start then
-        local num = tonumber(string.sub(target, digit_start, digit_end))
-        local clean = trim(string.sub(target, 1, digit_start - 1))
-        if clean ~= "" then
-            return clean, num, "absolute", override_attr, roll_mode
-        end
-    end
-
-    return target, nil, nil, override_attr, roll_mode
+-- 整数字符串化（避免 Dice! Lua 整数自动加 .0）
+local function int_str(n)
+    return string.format("%.0f", n)
 end
 
 -- ============================================================
@@ -530,59 +261,143 @@ local function format_attrs(stats, is_v4)
     return result
 end
 
--- .诡秘 入口
-local function handle_guimi(msg, tail)
-    local parsed = parse_guimi(tail)
+-- ============================================================
+--  命令解析（从 msg.fromMsg 中提取指令参数）
+-- ============================================================
 
-    if parsed.tail_for_gm then
-        return handle_gm_check(msg, parsed.tail_for_gm, nil)
+-- 解析 .诡秘 尾部
+local function parse_guimi_tail(tail)
+    tail = trim(tail)
+    local result = {sub_cmd = "attr", count = 1, error = nil, tail_for_gm = nil}
+
+    if tail == "" or tail == "3.0" or tail == "3.5" then
+        return result
+    end
+    if tail == "4.0" then
+        result.sub_cmd = "attr_v4"
+        return result
     end
 
-    if parsed.error then return parsed.error end
-
-    -- 昵称：优先 Dice! 角色卡姓名，其次用户昵称，最后 QQ 号
-    local userID = msg.fromQQ
-    local nick = getUserConf(userID, "nick", nil)
-    if not nick then nick = tostring(userID) end
-    local is_v4 = (parsed.sub_cmd == "attr_v4")
-
-    local title = "<" .. nick .. ">命运的馈赠在暗处已标注好了价码："
-
-    for _ = 1, parsed.count do
-        local stats = generate_attrs()
-        title = title .. "\n\n" .. format_attrs(stats, is_v4)
+    local num = tonumber(tail)
+    if num then
+        if num < 1 then result.error = "参数错误"; return result end
+        if num > MAX_GEN then
+            result.error = '"你应该去向伟大的宿命之环祈祷，这要观察的【命运】也太多了，我没这么大能耐。"'
+            return result
+        end
+        result.count = num
+        return result
     end
 
-    return title
+    if starts_with(tail, "4.0") then
+        result.sub_cmd = "attr_v4"
+        local after = trim(string.sub(tail, 4))
+        local anum = tonumber(after)
+        if after == "" then return result end
+        if anum then
+            if anum < 1 then result.error = "参数错误"
+            elseif anum > MAX_GEN then result.error = '"你应该去向伟大的宿命之环祈祷..."'
+            else result.count = anum end
+        else result.tail_for_gm = tail end
+        return result
+    end
+
+    if starts_with(tail, "3.0") or starts_with(tail, "3.5") then
+        local after = trim(string.sub(tail, 4))
+        local anum = tonumber(after)
+        if after == "" then return result end
+        if anum then
+            if anum < 1 then result.error = "参数错误"
+            elseif anum > MAX_GEN then result.error = '"你应该去向伟大的宿命之环祈祷..."'
+            else result.count = anum end
+        else result.tail_for_gm = tail end
+        return result
+    end
+
+    result.tail_for_gm = tail
+    return result
 end
 
--- ============================================================
---  D20 检定
--- ============================================================
+-- 解析 .gm 目标中的手动加值/改判/优劣势后缀
+local function parse_manual_modifier(raw_target)
+    if not raw_target or raw_target == "" then
+        return raw_target, nil, nil, nil, nil
+    end
 
+    local override_attr = nil
+    local roll_mode = nil
+    local target = raw_target
+
+    -- 提取尾部 adv/dis/优势/劣势
+    local function extract_rm(t, keyword, mode)
+        local len = #keyword
+        if #t >= len + 1 and string.sub(t, -len) == keyword
+           and string.sub(t, -(len + 1), -(len + 1)) == " " then
+            return trim(string.sub(t, 1, -(len + 2))), mode
+        end
+        return nil, nil
+    end
+
+    local nt, rm
+    nt, rm = extract_rm(target, "adv", "adv")
+    if nt then target = nt; roll_mode = rm end
+    if not roll_mode then nt, rm = extract_rm(target, "dis", "dis"); if nt then target = nt; roll_mode = rm end end
+    if not roll_mode then nt, rm = extract_rm(target, "优势", "adv"); if nt then target = nt; roll_mode = rm end end
+    if not roll_mode then nt, rm = extract_rm(target, "劣势", "dis"); if nt then target = nt; roll_mode = rm end end
+
+    -- 提取 /属性 后缀
+    local slash_pos = string.find(target, "/")
+    if slash_pos then
+        override_attr = trim(string.sub(target, slash_pos + 1))
+        target = trim(string.sub(target, 1, slash_pos - 1))
+    end
+
+    -- 匹配 +/- 数字序列
+    local sign_start = string.find(target, "[%+%-]%d+")
+    if sign_start then
+        local mod_str = string.sub(target, sign_start)
+        local total_mod = 0
+        for ns in string.gmatch(mod_str, "[%+%-]%d+") do
+            total_mod = total_mod + tonumber(ns)
+        end
+        local clean = trim(string.sub(target, 1, sign_start - 1))
+        if clean ~= "" then
+            return clean, total_mod, "adjust", override_attr, roll_mode
+        end
+    end
+
+    -- 匹配纯数字后缀（绝对指定）
+    local digit_start, digit_end = string.find(target, "%d+$")
+    if digit_start then
+        local num = tonumber(string.sub(target, digit_start, digit_end))
+        local clean = trim(string.sub(target, 1, digit_start - 1))
+        if clean ~= "" then
+            return clean, num, "absolute", override_attr, roll_mode
+        end
+    end
+
+    return target, nil, nil, override_attr, roll_mode
+end
+
+-- 模糊匹配
 local function fuzzy_match(target)
     if V3_ATTR_NAMES[target] then return target, true end
     if SKILL_ATTR_MAP[target] then return target, false end
-
     for skill_name, _ in pairs(SKILL_ATTR_MAP) do
-        if starts_with(skill_name, target) then
-            return skill_name, false
-        end
+        if starts_with(skill_name, target) then return skill_name, false end
     end
     for _, attr in ipairs(ATTRS_V3) do
         if starts_with(attr.name, target) then return attr.name, true end
     end
-    for _, attr in ipairs(ATTRS_V4) do
-        if starts_with(attr.name, target) then return attr.name, true end
-    end
-
     return target, false
 end
 
--- D20 检定核心（从 Dice! 角色卡读取属性/技能）
+-- ============================================================
+--  D20 检定核心
+-- ============================================================
+
 local function perform_d20_check(gid, userID, target, nick, extra_attr, extra_skill,
                                   absolute_attr, absolute_skill, override_attr, roll_mode)
-    -- 奖励投/惩罚投
     local d20, roll_tag
     if roll_mode == "adv" then
         local d1, d2 = ranint(1, 20), ranint(1, 20)
@@ -599,8 +414,6 @@ local function perform_d20_check(gid, userID, target, nick, extra_attr, extra_sk
 
     local is_skill = not V3_ATTR_NAMES[target]
     local linked_attr_name = override_attr or SKILL_ATTR_MAP[target] or "力量"
-
-    -- 从 Dice! 角色卡读取属性
     local card_attr = get_card_attr(gid, userID, linked_attr_name)
 
     local attr_val, attr_display
@@ -630,7 +443,6 @@ local function perform_d20_check(gid, userID, target, nick, extra_attr, extra_sk
     local skill_bonus = 0
 
     if is_skill then
-        -- 从 Dice! 角色卡读取技能等级
         local card_skill = get_card_skill(gid, userID, target)
         local level_name, card_skill_bonus = parse_skill_level(card_skill)
 
@@ -647,7 +459,6 @@ local function perform_d20_check(gid, userID, target, nick, extra_attr, extra_sk
                 skill_info = " + 技能" .. target .. "(" .. level_name .. ":" .. string.format("%+d", skill_bonus) .. ")"
             end
         end
-
         bonus = attr_val + skill_bonus
         table.insert(lines, "rd20(" .. d20 .. ") + " .. attr_display .. skill_info)
     else
@@ -655,79 +466,66 @@ local function perform_d20_check(gid, userID, target, nick, extra_attr, extra_sk
     end
 
     local total = d20 + bonus
-    local is_crit_success = (d20 == 20)
-    local is_crit_fail = (d20 == 1)
-
     table.insert(lines, "= " .. total)
 
-    if is_crit_success then
+    if d20 == 20 then
         table.insert(lines, "『大成功！』命运的眷顾降临于你。")
-    elseif is_crit_fail then
+    elseif d20 == 1 then
         table.insert(lines, "『大失败！』命运对你露出了恶意的微笑。")
     else
         table.insert(lines, "检定结果: " .. total)
     end
 
     local skill_summary = ""
-    if is_skill then
-        skill_summary = "+技能(" .. skill_bonus .. ")"
-    end
+    if is_skill then skill_summary = "+技能(" .. skill_bonus .. ")" end
     table.insert(lines, "（对抗时以此值比较：" .. d20 .. "+" .. attr_val .. skill_summary .. "=" .. total .. "）")
 
     return table.concat(lines, "\n")
 end
 
--- .gm 检定入口
-local function handle_gm_check(msg, raw_target, external_roll_mode)
+-- 执行 .gm 检定
+local function do_gm_check(msg, raw_target, external_roll_mode)
     if not raw_target or raw_target == "" then
         return "请指定技能或属性名称，如 .gm力量 或 .gm格斗"
     end
 
     local gid = msg.fromGroup
     local userID = msg.fromQQ
+    local nick = getUserConf(userID, "nick", nil) or tostring(userID)
 
     local clean_target, manual_mod, mod_mode, override_attr, parsed_roll_mode =
         parse_manual_modifier(raw_target)
 
-    if external_roll_mode then
-        parsed_roll_mode = external_roll_mode
-    end
+    if external_roll_mode then parsed_roll_mode = external_roll_mode end
 
     if not clean_target then
-        clean_target = raw_target
-        manual_mod = nil; mod_mode = nil; override_attr = nil
+        clean_target = raw_target; manual_mod = nil; mod_mode = nil; override_attr = nil
     end
 
-    local nick = getUserConf(userID, "nick", nil) or tostring(userID)
     local final_target, is_attr = fuzzy_match(clean_target)
     local is_skill = not is_attr
 
     if manual_mod then
         if mod_mode == "absolute" then
             if is_skill then
-                return perform_d20_check(gid, userID, final_target, nick,
-                    nil, nil, nil, manual_mod, override_attr, parsed_roll_mode)
+                return perform_d20_check(gid, userID, final_target, nick, nil, nil, nil, manual_mod, override_attr, parsed_roll_mode)
             else
-                return perform_d20_check(gid, userID, final_target, nick,
-                    nil, nil, manual_mod, nil, override_attr, parsed_roll_mode)
+                return perform_d20_check(gid, userID, final_target, nick, nil, nil, manual_mod, nil, override_attr, parsed_roll_mode)
             end
         else
             if is_skill then
-                return perform_d20_check(gid, userID, final_target, nick,
-                    nil, manual_mod, nil, nil, override_attr, parsed_roll_mode)
+                return perform_d20_check(gid, userID, final_target, nick, nil, manual_mod, nil, nil, override_attr, parsed_roll_mode)
             else
-                return perform_d20_check(gid, userID, final_target, nick,
-                    manual_mod, nil, nil, nil, override_attr, parsed_roll_mode)
+                return perform_d20_check(gid, userID, final_target, nick, manual_mod, nil, nil, nil, override_attr, parsed_roll_mode)
             end
         end
     else
-        return perform_d20_check(gid, userID, final_target, nick,
-            nil, nil, nil, nil, override_attr, parsed_roll_mode)
+        return perform_d20_check(gid, userID, final_target, nick, nil, nil, nil, nil, override_attr, parsed_roll_mode)
     end
 end
 
 -- ============================================================
---  理智检定 (SC)
+--  理智检定
 -- ============================================================
 
 local function roll_dice_expr(expr)
@@ -738,9 +536,7 @@ local function roll_dice_expr(expr)
         count = (count == "" or not count) and 1 or tonumber(count)
         sides = tonumber(sides)
         local total = 0
-        for _ = 1, count do
-            total = total + ranint(1, sides)
-        end
+        for _ = 1, count do total = total + ranint(1, sides) end
         return count, sides, total
     end
     local num = tonumber(expr)
@@ -748,65 +544,21 @@ local function roll_dice_expr(expr)
     return 1, 2, 1
 end
 
-local function handle_sc(msg, sc_success, sc_fail)
-    local gid = msg.fromGroup
-    local userID = msg.fromQQ
-    local current_san = get_card_san(gid, userID)
-    local d20 = ranint(1, 20)
-    local success = (d20 <= current_san)
-
-    if not sc_success then sc_success = "1" end
-    if not sc_fail then sc_fail = "1d2" end
-
-    local nick = getUserConf(userID, "nick", nil) or tostring(userID)
-
-    local lines = {}
-    table.insert(lines, "<" .. nick .. ">进行理智检定：")
-    table.insert(lines, "rd20(" .. d20 .. ") vs 理智(" .. current_san .. ")")
-
-    local loss_expr, loss
-    if success then
-        table.insert(lines, d20 .. " ≤ " .. current_san .. "，【理智检定成功】")
-        loss_expr = sc_success
-        _, _, loss = roll_dice_expr(sc_success)
-    else
-        table.insert(lines, d20 .. " > " .. current_san .. "，【理智检定失败】")
-        loss_expr = sc_fail
-        _, _, loss = roll_dice_expr(sc_fail)
-    end
-
-    table.insert(lines, "损失理智: " .. loss_expr .. " = " .. loss)
-    local new_san = math.max(0, current_san - loss)
-    table.insert(lines, "理智变化: " .. current_san .. " → " .. new_san)
-
-    if new_san <= 0 and current_san > 0 then
-        table.insert(lines, "☠ 理智归零，你已【失控】！")
-    elseif new_san <= 2 and current_san > 2 then
-        table.insert(lines, "⚠⚠ 你已陷入【真疯】状态，难以沟通。")
-    elseif new_san <= 8 and current_san > 8 then
-        table.insert(lines, "⚠ 你已陷入【半疯】状态，获得随机疯狂倾向。")
-    end
-
-    return table.concat(lines, "\n")
-end
-
 -- ============================================================
 --  衍生属性刷新
 -- ============================================================
 
-local function handle_refresh(msg)
+local function do_refresh(msg)
     local gid = msg.fromGroup
     local userID = msg.fromQQ
     local nick = getUserConf(userID, "nick", nil) or tostring(userID)
 
-    -- 从 Dice! 角色卡读取序列/消化/属性
     local seq_raw = getPlayerCardAttr(userID, gid, "序列", nil)
     local digest = getPlayerCardAttr(userID, gid, "消化", 0) or 0
     local con = get_card_attr(gid, userID, "体质")
     local pow_val = get_card_attr(gid, userID, "意志")
     local int_val = get_card_attr(gid, userID, "灵感")
 
-    -- 序列加成：序列9→1倍, 序列8→2倍, ..., 序列0→10倍
     local seq_mult = 0
     if seq_raw then seq_mult = 10 - seq_raw end
     local digest_bonus = math.floor(digest / 5)
@@ -815,93 +567,222 @@ local function handle_refresh(msg)
     local mp_new = pow_val + int_val + seq_mult * int_val + digest_bonus
     local san_new = 10 + pow_val
 
-    -- 写回 Dice! 角色卡
     setPlayerCardAttr(userID, gid, "生命", hp_new)
     setPlayerCardAttr(userID, gid, "灵性", mp_new)
     setPlayerCardAttr(userID, gid, "理智", san_new)
 
     local seq_info
-    if seq_raw then
-        seq_info = "序列" .. seq_raw .. "（" .. seq_mult .. "倍）"
-    else
-        seq_info = "无序列"
-    end
+    if seq_raw then seq_info = "序列" .. seq_raw .. "（" .. seq_mult .. "倍）"
+    else seq_info = "无序列" end
 
     return "<" .. nick .. "> " .. seq_info .. "  消化" .. digest .. "（+" .. digest_bonus .. "）\n"
         .. "生命→" .. hp_new .. "  灵性→" .. mp_new .. "  理智→" .. san_new .. "  已更新"
 end
 
 -- ============================================================
---  先攻检定
+--  指令处理函数（全局，供 msg_order 引用）
 -- ============================================================
 
-local function handle_ri(msg)
-    local gid = msg.fromGroup
+-- .诡秘 属性生成
+function gm_handle_guimi(msg)
+    -- 提取 .诡秘 后面的内容
+    -- msg.fromMsg 包含完整指令如 ".诡秘5"、".诡秘4.0"、".诡秘力量"
+    local fromMsg = msg.fromMsg
+
+    -- 跳过命令前缀（. / 。等）
+    local prefix_char = string.sub(fromMsg, 1, 1)
+    local rest = string.sub(fromMsg, 2)  -- 去掉首字符
+
+    -- "诡秘" 为 6 字节 UTF-8，跳过
+    local tail = ""
+    if starts_with(rest, "诡秘") then
+        tail = trim(string.sub(rest, 7))
+    end
+
+    local parsed = parse_guimi_tail(tail)
+
+    -- 非数字非版本号 → 当作 .gm 检定转发
+    if parsed.tail_for_gm then
+        return do_gm_check(msg, parsed.tail_for_gm, nil)
+    end
+
+    if parsed.error then return parsed.error end
+
+    local nick = getUserConf(msg.fromQQ, "nick", nil) or tostring(msg.fromQQ)
+    local is_v4 = (parsed.sub_cmd == "attr_v4")
+
+    local title = "<" .. nick .. ">命运的馈赠在暗处已标注好了价码："
+    for _ = 1, parsed.count do
+        title = title .. "\n\n" .. format_attrs(generate_attrs(), is_v4)
+    end
+    return title
+end
+
+-- .gm 及其变体（.gmb/.gmp/.gmsc/.gmri/.gm 帮助/.gm 刷新）
+function gm_handle_gm_family(msg)
+    local fromMsg = msg.fromMsg
     local userID = msg.fromQQ
-    local nick = getUserConf(userID, "nick", nil) or tostring(userID)
-    local d20 = ranint(1, 20)
-    local dex = get_card_attr(gid, userID, "敏捷")
-    local total = d20 + dex
+    local gid = msg.fromGroup
 
-    -- 存入群配置（简易先攻列表）
-    if gid and gid ~= "0" then
-        setGroupConf(gid, "guimi_init_" .. userID, nick .. "=" .. total)
+    -- 跳过命令前缀
+    local prefix_char = string.sub(fromMsg, 1, 1)
+    local rest = string.sub(fromMsg, 2)
+
+    -- 判断具体子指令（按最具体→最通用顺序检查）
+    if starts_with(rest, "gmsc") or starts_with(rest, "GMSC") then
+        -- === .gmsc ===
+        local tail = trim(string.sub(rest, 5))
+        local sc_success, sc_fail = nil, nil
+        if tail ~= "" then
+            local parts = {}
+            for part in string.gmatch(tail, "[^/%s]+") do
+                table.insert(parts, part)
+            end
+            if #parts >= 1 then sc_success = parts[1] end
+            if #parts >= 2 then sc_fail = parts[2] end
+        end
+        if not sc_success then sc_success = "1" end
+        if not sc_fail then sc_fail = "1d2" end
+
+        local current_san = get_card_san(gid, userID)
+        local d20 = ranint(1, 20)
+        local success = (d20 <= current_san)
+        local nick = getUserConf(userID, "nick", nil) or tostring(userID)
+
+        local lines = {}
+        table.insert(lines, "<" .. nick .. ">进行理智检定：")
+        table.insert(lines, "rd20(" .. d20 .. ") vs 理智(" .. current_san .. ")")
+
+        local loss_expr, loss
+        if success then
+            table.insert(lines, d20 .. " ≤ " .. current_san .. "，【理智检定成功】")
+            loss_expr = sc_success
+            _, _, loss = roll_dice_expr(sc_success)
+        else
+            table.insert(lines, d20 .. " > " .. current_san .. "，【理智检定失败】")
+            loss_expr = sc_fail
+            _, _, loss = roll_dice_expr(sc_fail)
+        end
+
+        table.insert(lines, "损失理智: " .. loss_expr .. " = " .. loss)
+        local new_san = math.max(0, current_san - loss)
+        table.insert(lines, "理智变化: " .. current_san .. " → " .. new_san)
+
+        if new_san <= 0 and current_san > 0 then
+            table.insert(lines, "☠ 理智归零，你已【失控】！")
+        elseif new_san <= 2 and current_san > 2 then
+            table.insert(lines, "⚠⚠ 你已陷入【真疯】状态，难以沟通。")
+        elseif new_san <= 8 and current_san > 8 then
+            table.insert(lines, "⚠ 你已陷入【半疯】状态，获得随机疯狂倾向。")
+        end
+        return table.concat(lines, "\n")
     end
 
-    return "<" .. nick .. ">先攻检定：rd20(" .. d20 .. ") + 敏捷(" .. dex .. ") = " .. total .. "  已加入先攻列表"
-end
+    if starts_with(rest, "gmri") or starts_with(rest, "GMRI") then
+        -- === .gmri ===
+        local nick = getUserConf(userID, "nick", nil) or tostring(userID)
+        local d20 = ranint(1, 20)
+        local dex = get_card_attr(gid, userID, "敏捷")
+        local total = d20 + dex
+        if gid and gid ~= "0" then
+            setGroupConf(gid, "guimi_init_" .. userID, nick .. "=" .. total)
+        end
+        return "<" .. nick .. ">先攻检定：rd20(" .. d20 .. ") + 敏捷(" .. dex .. ") = " .. total .. "  已加入先攻列表"
+    end
 
--- ============================================================
---  主入口
--- ============================================================
+    if starts_with(rest, "gmb") or starts_with(rest, "GMB") then
+        -- === .gmb ===
+        local tail = trim(string.sub(rest, 4))
+        if tail == "" then return "请指定技能或属性名称，如 .gmb力量" end
+        -- 纯数字 → 转发属性生成
+        if tonumber(tail) then
+            local num = tonumber(tail)
+            if num < 1 then return "参数错误" end
+            if num > MAX_GEN then return '"你应该去向伟大的宿命之环祈祷，这要观察的【命运】也太多了，我没这么大能耐。"' end
+            local nick = getUserConf(userID, "nick", nil) or tostring(userID)
+            local title = "<" .. nick .. ">命运的馈赠在暗处已标注好了价码："
+            for _ = 1, num do
+                title = title .. "\n\n" .. format_attrs(generate_attrs(), false)
+            end
+            return title
+        end
+        return do_gm_check(msg, tail, "adv")
+    end
 
-local text = msg.fromMsg
-local cmd_prefix, rest = strip_cmd_prefix(text)
+    if starts_with(rest, "gmp") or starts_with(rest, "GMP") then
+        -- === .gmp ===
+        local tail = trim(string.sub(rest, 4))
+        if tail == "" then return "请指定技能或属性名称，如 .gmp力量" end
+        if tonumber(tail) then
+            local num = tonumber(tail)
+            if num < 1 then return "参数错误" end
+            if num > MAX_GEN then return '"你应该去向伟大的宿命之环祈祷，这要观察的【命运】也太多了，我没这么大能耐。"' end
+            local nick = getUserConf(userID, "nick", nil) or tostring(userID)
+            local title = "<" .. nick .. ">命运的馈赠在暗处已标注好了价码："
+            for _ = 1, num do
+                title = title .. "\n\n" .. format_attrs(generate_attrs(), false)
+            end
+            return title
+        end
+        return do_gm_check(msg, tail, "dis")
+    end
 
-if not cmd_prefix or rest == "" then
-    return ""
-end
+    -- === .gm ===
+    local tail = trim(string.sub(rest, 3))
 
--- 判断命令类型并分发
-if starts_with(rest, "诡秘") then
-    local tail = string.sub(rest, 7)
-    return handle_guimi(msg, tail)
-end
+    if tail == "" then
+        return "请指定技能或属性名称，如 .gm力量 或 .gm格斗"
+    end
 
-if starts_with(rest, "gm") or starts_with(rest, "GM") then
-    local parsed = parse_gm(rest)
-
-    if parsed.cmd_type == "help" then
+    if string.lower(tail) == "help" then
         return HELP_TEXT
-    elseif parsed.cmd_type == "refresh" then
-        return handle_refresh(msg)
-    elseif parsed.cmd_type == "gmri" then
-        return handle_ri(msg)
-    elseif parsed.cmd_type == "gmsc" then
-        return handle_sc(msg, parsed.sc_success, parsed.sc_fail)
-    elseif parsed.cmd_type == "gmb" or parsed.cmd_type == "gmp" then
-        if parsed.error then return parsed.error end
-        if parsed.target and tonumber(parsed.target) then
-            local num = tonumber(parsed.target)
-            if num < 1 then return "参数错误" end
-            if num > MAX_GEN then
-                return '"你应该去向伟大的宿命之环祈祷，这要观察的【命运】也太多了，我没这么大能耐。"'
-            end
-            return handle_guimi(msg, tostring(num))
-        end
-        return handle_gm_check(msg, parsed.target, parsed.roll_mode)
-    elseif parsed.cmd_type == "gm" then
-        if parsed.error then return parsed.error end
-        if parsed.target and tonumber(parsed.target) then
-            local num = tonumber(parsed.target)
-            if num < 1 then return "参数错误" end
-            if num > MAX_GEN then
-                return '"你应该去向伟大的宿命之环祈祷，这要观察的【命运】也太多了，我没这么大能耐。"'
-            end
-            return handle_guimi(msg, tostring(num))
-        end
-        return handle_gm_check(msg, parsed.target, parsed.roll_mode)
     end
+
+    if tail == "刷新" or tail == "更新" then
+        return do_refresh(msg)
+    end
+
+    -- "优势 <target>" / "劣势 <target>"
+    if starts_with(tail, "优势") then
+        local inner = trim(string.sub(tail, 7))
+        if inner ~= "" then return do_gm_check(msg, inner, "adv") end
+    end
+    if starts_with(tail, "劣势") then
+        local inner = trim(string.sub(tail, 7))
+        if inner ~= "" then return do_gm_check(msg, inner, "dis") end
+    end
+
+    -- 纯数字 → 转发属性生成
+    if tonumber(tail) then
+        local num = tonumber(tail)
+        if num < 1 then return "参数错误" end
+        if num > MAX_GEN then return '"你应该去向伟大的宿命之环祈祷，这要观察的【命运】也太多了，我没这么大能耐。"' end
+        local nick = getUserConf(userID, "nick", nil) or tostring(userID)
+        local title = "<" .. nick .. ">命运的馈赠在暗处已标注好了价码："
+        for _ = 1, num do
+            title = title .. "\n\n" .. format_attrs(generate_attrs(), false)
+        end
+        return title
+    end
+
+    return do_gm_check(msg, tail, nil)
 end
 
-return ""
+-- ============================================================
+--  指令注册（msg_order 表）
+-- ============================================================
+
+msg_order = {}
+msg_order[".诡秘"] = "gm_handle_guimi"
+msg_order["。诡秘"] = "gm_handle_guimi"
+
+msg_order[".gm"] = "gm_handle_gm_family"
+msg_order["。gm"] = "gm_handle_gm_family"
+msg_order[".gmb"] = "gm_handle_gm_family"
+msg_order["。gmb"] = "gm_handle_gm_family"
+msg_order[".gmp"] = "gm_handle_gm_family"
+msg_order["。gmp"] = "gm_handle_gm_family"
+msg_order[".gmri"] = "gm_handle_gm_family"
+msg_order["。gmri"] = "gm_handle_gm_family"
+msg_order[".gmsc"] = "gm_handle_gm_family"
+msg_order["。gmsc"] = "gm_handle_gm_family"
