@@ -66,10 +66,10 @@
 
 **两部分独立安装，缺一不可：**
 
-| 文件 | 安装位置 | 说明 |
+| 文件 | 安装方式 | 说明 |
 |------|---------|------|
-| `GuimiRulePlugin.opk` | OlivOS `plugin/` | 插件本体 |
-| `gm.json` | ODC `unity/extend/template/` | 人物卡模板 |
+| `OlivOS_GuimiRulePlugin.zip` | 解压到 OlivOS `plugin/` | 插件本体 |
+| `OlivOS_gm.zip` | 解压到 ODC `unity/extend/template/` | 人物卡模板 |
 
 > ⚠️ 插件与模板**互相锁定**：
 > - 插件 → `requireTemplate: {name: "gm", minVersion: "1.0.0"}`
