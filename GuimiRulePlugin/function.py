@@ -468,12 +468,17 @@ def handle_gm_command(pcHash, hagID, target: str, nick: str,
     """处理 .gm 检定命令。支持手动加值、改判属性、奖励投/惩罚投。"""
     if target.strip().lower() == 'help':
         return msgCustom.dictHelpDocTemp.get('诡秘规则帮助', '暂无帮助信息')
+
     # 解析手动加值后缀
     clean_target, manual_mod, mod_mode, override_attr, parsed_roll_mode, _ = _parse_manual_modifier(target)
 
     # 外部传入的 roll_mode（来自 .gmb/.gmp/.gm 优势 等）优先
     if roll_mode:
         parsed_roll_mode = roll_mode
+
+    # 拒绝特殊/衍生字段的检定（在解析 clean_target 之后）
+    if clean_target in config.GM_EXCLUDED_TARGETS:
+        return f'<{nick}> "{clean_target}" 是衍生属性或特殊字段，无法直接检定。\n请使用 .gm <技能/属性名>，如 .gm 力量 或 .gm 格斗'
 
     if clean_target is None:
         # 回退：理论上不应到达，但保留安全兜底
@@ -565,10 +570,76 @@ def _get_special_value(pcHash, hagID, key: str) -> int:
     return None
 
 
+def _tier_from_level(level: float) -> dict:
+    """根据位格数值推导名称和神性补正。"""
+    if level >= 4:
+        return {'tier_name': '真神', 'divinity': 8}
+    if level >= 3.5:
+        return {'tier_name': '天使之王', 'divinity': 6}
+    if level >= 3:
+        return {'tier_name': '天使', 'divinity': 4}
+    if level >= 2:
+        return {'tier_name': '圣者', 'divinity': 2}
+    if level >= 1:
+        return {'tier_name': '中序列', 'divinity': 0}
+    if level >= 0:
+        return {'tier_name': '低序列', 'divinity': 0}
+    return {'tier_name': '普通人', 'divinity': 0}
+
+
+def _get_tier(seq_raw, tier_override=None) -> dict:
+    """
+    返回位格信息。仅当 tier_override 与序列推导值不一致时才使用覆盖（如天使之王 3.5）。
+
+    返回: {'tier_name': str, 'tier_level': float, 'divinity': int, 'seq_count': int}
+    """
+    # 先从序列推导
+    if seq_raw is None:
+        auto = {'tier_name': '普通人', 'tier_level': -1, 'divinity': 0, 'seq_count': 0}
+    else:
+        seq = int(seq_raw)
+        seq_count = max(10 - seq, 0)
+        if seq >= 9:
+            level = 0
+        elif seq >= 7:
+            level = 1
+        elif seq >= 4:
+            level = 2
+        elif seq >= 2:
+            level = 3
+        else:
+            level = 4
+        info = _tier_from_level(level)
+        auto = {
+            'tier_name': info['tier_name'], 'tier_level': level,
+            'divinity': info['divinity'], 'seq_count': seq_count,
+        }
+    # 用户手动设了不同的位格（如天使之王 3.5），覆盖自动推导
+    if tier_override is not None and float(tier_override) != auto['tier_level']:
+        level = float(tier_override)
+        info = _tier_from_level(level)
+        auto['tier_name'] = info['tier_name']
+        auto['tier_level'] = level
+        auto['divinity'] = info['divinity']
+    return auto
+
+
 def refresh_derived_stats(pcHash, hagID, nick: str, bot_hash=None) -> str:
     """
-    根据卡片中的序列等级、消化度、属性，自动计算并更新生命/灵性。
-    返回格式化的结果说明（模板渲染）。
+    根据卡片中的序列等级、消化度、属性，自动计算并更新衍生属性。
+
+    规则书原文公式（第三章）：
+      血量 = 体型基数(10) + 初始体质 + 序列数量 × 现在体质 + 消化/5
+      灵性 = 初始意志 + 初始灵感 + 序列数量 × 现在灵感 + 消化/5
+      理智 = 10 + 意志
+      物理防御 = 10 + 敏捷 + 闪避技能
+      意志防御 = 10 + 意志
+      身体强度 = 10 + 体质
+      灵体强度 = 灵感 + 意志 + 体质/2 (向上取整)
+      移动力 = 力量 + 敏捷
+
+    神性补正（第八章）：圣者+2 / 天使+4 / 天使之王+6 / 真神+8
+      神性补正将额外叠加到血量、灵性。
     """
     odc = _get_odc()
     seq_raw = _get_special_value(pcHash, hagID, '序列')
@@ -576,40 +647,59 @@ def refresh_derived_stats(pcHash, hagID, nick: str, bot_hash=None) -> str:
     con = _get_user_stat(pcHash, hagID, '体质')
     pow_val = _get_user_stat(pcHash, hagID, '意志')
     int_val = _get_user_stat(pcHash, hagID, '灵感')
+    dex = _get_user_stat(pcHash, hagID, '敏捷')
+    str_val = _get_user_stat(pcHash, hagID, '力量')
+    dodge = _get_user_skill(pcHash, hagID, '闪避')
 
-    # 序列加成：序列9→1倍, 序列8→2倍, ..., 序列0→10倍
-    seq_mult = min(max(0 if seq_raw is None else (10 - seq_raw), 0), 10)
+    # 序列加成与位格：有卡上位格（如天使之王 3.5）时优先，否则从序列推导
+    card_tier = _get_special_value(pcHash, hagID, '位格')
+    tier = _get_tier(seq_raw, tier_override=card_tier)
+    seq_count = tier['seq_count']
     digest_bonus = digest // 5
 
-    hp_new = 10 + con + seq_mult * con + digest_bonus
-    mp_new = pow_val + int_val + seq_mult * int_val + digest_bonus
+    # 核心衍生属性（规则书第三章原文公式）
+    # 基础值（不含神性补正）
+    base_hp = 10 + con + seq_count * con + digest_bonus
+    base_mp = pow_val + int_val + seq_count * int_val + digest_bonus
+    base_move = str_val + dex
+
+    # 神性补正（规则书第八章）：血量/灵性/移动力 乘倍数，防御 加数值
+    div = tier['divinity']
+    div_mult = max(div, 1)  # 无神性时乘1（不变）
+
+    hp_new = base_hp * div_mult
+    mp_new = base_mp * div_mult
     san_new = 10 + pow_val
+    move = base_move * div_mult
+
+    # 防御属性（规则书第三 + 八章）
+    phys_def = 10 + dex + dodge + div
+    will_def = 10 + pow_val + div
+    body_str = 10 + con
+    # 灵体强度：灵感+意志+体质/2（向上取整）
+    soul_str = int_val + pow_val + (con + 1) // 2
 
     # 写入卡片
     try:
-        odc.pcCard.setPcSkillAPI(
-            pcHash=pcHash, skillName='血量上限', skillValue=hp_new,
-            hagId=hagID
-        )
-        odc.pcCard.setPcSkillAPI(
-            pcHash=pcHash, skillName='血量', skillValue=hp_new,
-            hagId=hagID
-        )
-        odc.pcCard.setPcSkillAPI(
-            pcHash=pcHash, skillName='灵性', skillValue=mp_new,
-            hagId=hagID
-        )
-        odc.pcCard.setPcSkillAPI(
-            pcHash=pcHash, skillName='理智', skillValue=san_new,
-            hagId=hagID
-        )
+        odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='血量上限', skillValue=hp_new, hagId=hagID)
+        odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='血量', skillValue=hp_new, hagId=hagID)
+        odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='灵性', skillValue=mp_new, hagId=hagID)
+        odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='理智', skillValue=san_new, hagId=hagID)
+        odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='物理防御', skillValue=phys_def, hagId=hagID)
+        odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='意志防御', skillValue=will_def, hagId=hagID)
+        odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='身体强度', skillValue=body_str, hagId=hagID)
+        odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='灵体强度', skillValue=soul_str, hagId=hagID)
+        odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='移动力', skillValue=move, hagId=hagID)
+        # 位格由序列自动推导并写入（天使之王需在刷新后 .st 位格3.5 手动覆盖）
+        if seq_raw is not None:
+            odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='位格', skillValue=tier['tier_level'], hagId=hagID)
     except Exception as e:
         return msgCustom.render('strGMErrRefreshFail', bot_hash=bot_hash, error=e)
 
     # 序列信息片段
     if seq_raw is not None:
         seq_info = msgCustom.render('strGMRefreshSeqInfo', bot_hash=bot_hash,
-                                    seq=seq_raw, mult=seq_mult)
+                                    seq=seq_raw, mult=seq_count)
     else:
         seq_info = msgCustom.render('strGMRefreshNoSeq', bot_hash=bot_hash)
 

@@ -41,7 +41,7 @@ def error_log(Proc, message: str) -> None:
 
 
 def get_message_text_from_event(plugin_event) -> str:
-    """从事件中安全获取原始消息文本（CQ 码格式）。"""
+    """从事件中安全获取原始消息文本。"""
     try:
         return str(getattr(plugin_event.data, 'message', ''))
     except Exception:
@@ -49,10 +49,7 @@ def get_message_text_from_event(plugin_event) -> str:
 
 
 def reply_message(plugin_event, message: str) -> None:
-    """
-    统一回复消息（封装 try/except）。
-    优先使用 OlivaDiceCore 的 replyMsg，失败时回退到 plugin_event.reply。
-    """
+    """统一回复消息（封装 try/except）。"""
     try:
         import OlivaDiceCore
         OlivaDiceCore.msgReply.replyMsg(plugin_event, str(message))
@@ -67,27 +64,9 @@ def reply_message(plugin_event, message: str) -> None:
 
 
 def parse_command(message_text: str) -> dict:
-    """
-    解析「.诡秘」相关命令。
-
-    返回:
-        {
-            'is_guimi': bool,    # 是否为 .诡秘 命令
-            'sub_cmd': str,      # 子命令: 'attr'|'attr_v4'|None
-            'count': int,        # 生成套数
-            'error': str|None,   # 错误信息
-        }
-    """
-    result = {
-        'is_guimi': False,
-        'sub_cmd': None,
-        'count': 1,
-        'error': None,
-    }
-
+    """解析「.诡秘」相关命令。"""
+    result = {'is_guimi': False, 'sub_cmd': None, 'count': 1, 'error': None}
     text = message_text.strip()
-
-    # 匹配前缀
     matched_prefix = None
     for prefix in config.allowed_prefix_list:
         if text.startswith(prefix):
@@ -95,27 +74,19 @@ def parse_command(message_text: str) -> dict:
             break
     if matched_prefix is None:
         return result
-
     rest = text[len(matched_prefix):]
     if not rest.startswith(config.main_command):
         return result
-
     result['is_guimi'] = True
     tail = rest[len(config.main_command):]
-
-    # 「.诡秘4.0」
     if tail == '4.0':
         result['sub_cmd'] = 'attr_v4'
         result['count'] = 1
         return result
-
-    # 「.诡秘」「.诡秘3.0」「.诡秘3.5」
     if tail in ('', '3.0', '3.5'):
         result['sub_cmd'] = 'attr'
         result['count'] = 1
         return result
-
-    # 「.诡秘5」（纯数字后缀）
     if tail.isdigit():
         num = int(tail)
         if num < 1:
@@ -127,24 +98,17 @@ def parse_command(message_text: str) -> dict:
         result['sub_cmd'] = 'attr'
         result['count'] = num
         return result
-
-    # 「.诡秘4.0 3」或「.诡秘 3」
-    version_part = ''
     count_part = ''
     if tail.startswith('4.0'):
-        version_part = '4.0'
         count_part = tail[3:].strip()
         result['sub_cmd'] = 'attr_v4'
     elif tail.startswith('3.0'):
-        version_part = '3.0'
         count_part = tail[3:].strip()
         result['sub_cmd'] = 'attr'
     elif tail.startswith('3.5'):
-        version_part = '3.5'
         count_part = tail[3:].strip()
         result['sub_cmd'] = 'attr'
     else:
-        # tail 不是版本号前缀，如果纯数字才作为数量
         count_part = tail.strip()
         result['sub_cmd'] = 'attr'
         if count_part.isdigit():
@@ -157,11 +121,9 @@ def parse_command(message_text: str) -> dict:
                 return result
             result['count'] = num
         elif count_part:
-            # 非纯数字 → 当参数错误，交给互通路由转 gm
             result['error'] = msgCustom.get_template('strGMErrParam')
             return result
         return result
-
     digit_match = re.search(r'\d+', count_part)
     if digit_match:
         num = int(digit_match.group())
@@ -177,30 +139,13 @@ def parse_command(message_text: str) -> dict:
         return result
     else:
         result['count'] = 1
-
     return result
 
 
 def parse_gm_command(message_text: str) -> dict:
-    """
-    解析「.gm <技能/属性>」命令。
-
-    返回:
-        {
-            'is_gm': bool,
-            'target': str|None,   # 目标技能或属性名称
-            'error': str|None,
-        }
-    """
-    result = {
-        'is_gm': False,
-        'target': None,
-        'error': None,
-    }
-
+    """解析「.gm <技能/属性>」命令。"""
+    result = {'is_gm': False, 'target': None, 'error': None}
     text = message_text.strip()
-
-    # 匹配前缀
     matched_prefix = None
     for prefix in config.allowed_prefix_list:
         if text.startswith(prefix):
@@ -208,29 +153,20 @@ def parse_gm_command(message_text: str) -> dict:
             break
     if matched_prefix is None:
         return result
-
     rest = text[len(matched_prefix):]
-
-    # 必须以「gm」或「GM」开头
     if not rest.lower().startswith('gm'):
         return result
-
     result['is_gm'] = True
-
-    # 提取 gm 后面的部分
     tail = rest[2:].strip()
     if not tail:
         result['error'] = msgCustom.get_template('strGMErrNoTarget')
         return result
-
-    # 中文前置：.gm 优势 力量 / .gm 劣势 格斗
     roll_mode = None
     for keyword, mode in [('优势', 'adv'), ('劣势', 'dis')]:
         if tail.startswith(keyword) and len(tail) > len(keyword):
             roll_mode = mode
             tail = tail[len(keyword):].strip()
             break
-
     result['target'] = tail
     result['roll_mode'] = roll_mode
     return result
@@ -290,27 +226,9 @@ def parse_gmri_command(message_text: str) -> dict:
 
 
 def parse_sc_command(message_text: str) -> dict:
-    """
-    解析「.sc [参数]」命令。
-
-    返回:
-        {
-            'is_sc': bool,
-            'loss_on_success': str|None,   # 成功损失骰（如 '1d2'）
-            'loss_on_fail': str|None,      # 失败损失骰（如 '1d4'）
-            'error': str|None,
-        }
-    """
-    result = {
-        'is_sc': False,
-        'loss_on_success': None,
-        'loss_on_fail': None,
-        'error': None,
-    }
-
+    """解析「.gmsc [损失骰]」理智检定命令。"""
+    result = {'is_sc': False, 'loss_on_success': None, 'loss_on_fail': None, 'error': None}
     text = message_text.strip()
-
-    # 匹配前缀
     matched_prefix = None
     for prefix in config.allowed_prefix_list:
         if text.startswith(prefix):
@@ -318,44 +236,29 @@ def parse_sc_command(message_text: str) -> dict:
             break
     if matched_prefix is None:
         return result
-
     rest = text[len(matched_prefix):]
-
-    # 必须「gmsc」开头
     if not rest.lower().startswith('gmsc'):
         return result
-
     result['is_sc'] = True
-
-    # 提取参数
     tail = rest[4:].strip()
     if tail:
-        # 解析如 "1d2/1d4" 或 "1d2 1d4" 的格式
         parts = re.split(r'[/\s]+', tail)
-        parts = [p for p in parts if p]  # 去空
+        parts = [p for p in parts if p]
         if len(parts) >= 1:
             result['loss_on_success'] = parts[0]
         if len(parts) >= 2:
             result['loss_on_fail'] = parts[1]
-
     return result
 
 
 def extract_guimi_tail(message_text: str) -> str:
-    """
-    从「.诡秘<内容>」中提取「诡秘」后面的 tail。
-
-    当 .诡秘 后面的内容不是数字/版本号时，将其作为 .gm 的目标文本。
-
-    返回: tail 字符串，若无法提取则返回空字符串。
-    """
+    """从「.诡秘<内容>」中提取 tail，用于互通路由。"""
     text = message_text.strip()
     for prefix in config.allowed_prefix_list:
         if text.startswith(prefix):
             rest = text[len(prefix):]
             if rest.startswith(config.main_command):
                 tail = rest[len(config.main_command):].strip()
-                # 排除纯数字和版本号（这些应该走属性生成）
                 if tail in ('', '3.0', '3.5', '4.0'):
                     return ''
                 if tail.isdigit():
