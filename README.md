@@ -36,10 +36,6 @@
 | `OlivOS_GuimiRulePlugin.zip` | 解压到 OlivOS `plugin/` | 插件本体 |
 | `OlivOS_gm.zip` | 解压到 ODC `unity/extend/template/` | 人物卡模板 |
 
-> ⚠️ 插件与模板**互相锁定**：
-> - 插件 → `requireTemplate: {name: "gm", minVersion: "1.0.0"}`
-> - 模板 → `requirePlugin: {namespace: "GuimiRulePlugin", minVersion: "0.1.1"}`
-
 ### 快速上手
 
 ```
