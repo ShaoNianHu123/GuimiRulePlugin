@@ -3,8 +3,8 @@
     "author": "少年狐 | https://github.com/ShaoNianHu123/GuimiRulePlugin | QQ: 1690676242",
     "namespace": "GuimiRulePlugin",
     "message_mode": "olivos_string",
-    "info": "诡秘之主D20跑团规则插件 v1.0.1 —— 位格与神性补正系统：序列推导位格，自动乘倍数叠加血灵防",
-    "version": "1.0.1",
+    "info": "诡秘之主D20跑团规则插件 v1.0.2 —— 位格推导bug修复：切换序列后自动重置位格",
+    "version": "1.0.2",
     "svn": 1,
     "requireTemplate": {
         "name": "gm",
