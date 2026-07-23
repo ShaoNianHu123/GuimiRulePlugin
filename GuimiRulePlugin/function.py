@@ -587,41 +587,36 @@ def _tier_from_level(level: float) -> dict:
     return {'tier_name': '普通人', 'divinity': 0}
 
 
-def _get_tier(seq_raw, tier_override=None) -> dict:
+def _get_tier(seq_raw) -> dict:
     """
-    返回位格信息。仅当 tier_override 与序列推导值不一致时才使用覆盖（如天使之王 3.5）。
+    根据序列等级返回位格信息。
+
+    规则书原文（第七章）：
+      低序列（9-8）、中序列（7-5）、圣者（4-3）、天使（2-1）、真神（0）
 
     返回: {'tier_name': str, 'tier_level': float, 'divinity': int, 'seq_count': int}
+          tier_level: 0=低序列, 1=中序列, 2=圣者, 3=天使, 4=真神
+          divinity: 神性补正点数（圣者2/天使4/真神8，详见_tier_from_level）
     """
-    # 先从序列推导
     if seq_raw is None:
-        auto = {'tier_name': '普通人', 'tier_level': -1, 'divinity': 0, 'seq_count': 0}
+        return {'tier_name': '普通人', 'tier_level': -1, 'divinity': 0, 'seq_count': 0}
+    seq = int(seq_raw)
+    seq_count = max(10 - seq, 0)
+    if seq >= 9:
+        level = 0
+    elif seq >= 7:
+        level = 1
+    elif seq >= 4:
+        level = 2
+    elif seq >= 2:
+        level = 3
     else:
-        seq = int(seq_raw)
-        seq_count = max(10 - seq, 0)
-        if seq >= 9:
-            level = 0
-        elif seq >= 7:
-            level = 1
-        elif seq >= 4:
-            level = 2
-        elif seq >= 2:
-            level = 3
-        else:
-            level = 4
-        info = _tier_from_level(level)
-        auto = {
-            'tier_name': info['tier_name'], 'tier_level': level,
-            'divinity': info['divinity'], 'seq_count': seq_count,
-        }
-    # 用户手动设了不同的位格（如天使之王 3.5），覆盖自动推导
-    if tier_override is not None and float(tier_override) != auto['tier_level']:
-        level = float(tier_override)
-        info = _tier_from_level(level)
-        auto['tier_name'] = info['tier_name']
-        auto['tier_level'] = level
-        auto['divinity'] = info['divinity']
-    return auto
+        level = 4
+    info = _tier_from_level(level)
+    return {
+        'tier_name': info['tier_name'], 'tier_level': level,
+        'divinity': info['divinity'], 'seq_count': seq_count,
+    }
 
 
 def refresh_derived_stats(pcHash, hagID, nick: str, bot_hash=None) -> str:
@@ -651,10 +646,10 @@ def refresh_derived_stats(pcHash, hagID, nick: str, bot_hash=None) -> str:
     str_val = _get_user_stat(pcHash, hagID, '力量')
     dodge = _get_user_skill(pcHash, hagID, '闪避')
 
-    # 序列加成与位格：有卡上位格（如天使之王 3.5）时优先，否则从序列推导
-    card_tier = _get_special_value(pcHash, hagID, '位格')
-    tier = _get_tier(seq_raw, tier_override=card_tier)
+    # 序列加成与位格：始终从序列推导
+    tier = _get_tier(seq_raw)
     seq_count = tier['seq_count']
+    digest_bonus = digest // 5
     digest_bonus = digest // 5
 
     # 核心衍生属性（规则书第三章原文公式）
@@ -690,7 +685,7 @@ def refresh_derived_stats(pcHash, hagID, nick: str, bot_hash=None) -> str:
         odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='身体强度', skillValue=body_str, hagId=hagID)
         odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='灵体强度', skillValue=soul_str, hagId=hagID)
         odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='移动力', skillValue=move, hagId=hagID)
-        # 位格由序列自动推导并写入（天使之王需在刷新后 .st 位格3.5 手动覆盖）
+        # 位格由序列推导并写入
         if seq_raw is not None:
             odc.pcCard.setPcSkillAPI(pcHash=pcHash, skillName='位格', skillValue=tier['tier_level'], hagId=hagID)
     except Exception as e:
